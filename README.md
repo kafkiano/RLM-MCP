@@ -57,6 +57,7 @@ Your client's LLM uses the provided tools to:
 
 ## Installation
 
+
 ```bash
 # Clone or navigate to project
 cd rlm-mcp-server
@@ -71,7 +72,20 @@ npm run build
 npm start
 ```
 
-**No environment variables needed!**
+⚠️ The GitHub Documentation Retrieval Tool (`rlm_get_github_docs`) needs the **GitHub Documentation Download Tool** globally installed as dependency:
+
+```bash
+# Install cargo if needed
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# Clone and install
+git clone https://github.com/kafkiano/gh-docs-download.git
+cd gh-docs-download
+cargo build --release
+
+# Or install directly
+cargo install --path .
+```
 
 ## MCP Client Configuration
 
@@ -116,6 +130,19 @@ Add to your MCP server configuration:
     "args": ["/path/to/rlm-mcp-server/dist/index.js"]
   }
 }
+```
+
+#### Roo Code
+
+Edit `.roo/mcp.json` or globally
+
+```json
+	"mcpServers": {
+    "rlm": {
+      "command": "node",
+      "args": ["/path/to/rlm-mcp-server/dist/index.js"]
+    }
+	}
 ```
 
 ## Available Tools
@@ -225,6 +252,26 @@ getAnswer()                       // Get answer state
 JSON.parse(str)                   // Parse
 JSON.stringify(obj, indent)       // Stringify
 ```
+
+#### GitHub Documentation Retrieval
+
+**Rationale**: Retrieve any github documentation recursive searchable and structured by simply using its url. Use the `rlm_get_github_docs` tool to download, aggregate, and load GitHub documentation in a single step:
+
+```javascript
+// Single tool call to prepare a github repo
+rlm_get_github_docs({
+  url: "https://github.com/owner/repo/tree/main/docs",
+  context_id: "repo-docs",
+  strategy: "by_sections" // Optional: auto-detected by default
+})
+```
+
+**Parameters**:
+- `url` (required): GitHub URL pointing to documentation directory
+- `context_id` (optional, default: "github-docs"): Context identifier for loaded docs
+- `session_id` (optional): Session ID (default session if omitted)
+- `strategy` (optional): Override decomposition strategy (auto-detected by default)
+- `keep_temp` (optional, default: false): Keep temporary downloaded files for debugging
 
 ## Example Workflow
 
