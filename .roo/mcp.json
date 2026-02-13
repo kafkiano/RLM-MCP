@@ -1,0 +1,27 @@
+{
+	"mcpServers": {
+    "rlm": {
+      "command": "node",
+      "args": ["dist/index.js"],
+      "alwaysAllow": [
+        "rlm_load_context",
+        "rlm_get_context_info",
+        "rlm_read_context",
+        "rlm_decompose_context",
+        "rlm_find_all",
+        "rlm_search_context",
+        "rlm_get_chunks",
+        "rlm_set_variable",
+        "rlm_get_variable",
+        "rlm_set_answer",
+        "rlm_get_answer",
+        "rlm_create_session",
+        "rlm_get_statistics",
+        "rlm_suggest_strategy",
+        "rlm_clear_session",
+        "rlm_get_session_info",
+        "rlm_execute_code"
+      ]
+    }
+	}
+}
