@@ -34,6 +34,7 @@ import {
   ClearSessionInputSchema,
   SuggestStrategyInputSchema,
   GetStatisticsInputSchema,
+  GetGitHubDocsInputSchema,
   type LoadContextInput,
   type GetContextInfoInput,
   type ReadContextInput,
@@ -50,9 +51,12 @@ import {
   type GetSessionInfoInput,
   type ClearSessionInput,
   type SuggestStrategyInput,
-  type GetStatisticsInput
+  type GetStatisticsInput,
+  type GetGitHubDocsInput
 } from '../schemas/tools.js';
 import { CHARACTER_LIMIT } from '../constants.js';
+import { downloadGitHubDocs, checkGhDocsDownloadAvailable, cleanupTempDir } from '../utils/github-downloader.js';
+import { loadAndAggregateDocs } from '../utils/aggregator.js';
 
 /**
  * Register all RLM tools with the MCP server
@@ -862,6 +866,157 @@ Returns length, line/word/sentence/paragraph counts, and averages.`,
         content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
         structuredContent: output
       };
+    }
+  );
+
+  // ============================================
+  // GitHub Documentation Tools
+  // ============================================
+
+  server.registerTool(
+    'rlm_get_github_docs',
+    {
+      title: 'Get GitHub Documentation',
+      description: `Download GitHub documentation and load it into the RLM session.
+
+This tool downloads documentation from a GitHub repository, aggregates the content,
+decomposes it into chunks, and loads it into the session for immediate RLM processing.
+
+Example workflow:
+1. rlm_get_github_docs - Download and load documentation
+2. rlm_get_context_info - Understand the loaded documentation
+3. rlm_search_context - Find relevant sections
+4. rlm_read_context - Read specific portions
+
+The tool uses gh-docs-download to fetch documentation and automatically
+cleans up temporary files after loading (unless keep_temp is true).`,
+      inputSchema: GetGitHubDocsInputSchema,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true
+      }
+    },
+    async (params: GetGitHubDocsInput) => {
+      try {
+        // Check if gh-docs-download is available
+        const isAvailable = await checkGhDocsDownloadAvailable();
+        if (!isAvailable) {
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                success: false,
+                error: 'gh-docs-download not found in PATH. Please install it first: npm install -g gh-docs-download'
+              }, null, 2)
+            }]
+          };
+        }
+
+        // Get session
+        const session = params.session_id
+          ? sessionManager.getSession(params.session_id)
+          : sessionManager.getDefaultSession();
+        
+        if (!session) {
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                success: false,
+                error: 'Session not found'
+              }, null, 2)
+            }]
+          };
+        }
+
+        console.log(`Downloading GitHub docs from: ${params.url}`);
+        
+        // Download documentation
+        const downloadResult = await downloadGitHubDocs(params.url);
+        
+        if (!downloadResult.success) {
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                success: false,
+                error: `Download failed: ${downloadResult.error}`,
+                details: downloadResult.stderr
+              }, null, 2)
+            }]
+          };
+        }
+
+        console.log(`Downloaded to: ${downloadResult.outputDir}`);
+        
+        let tempDir = downloadResult.outputDir;
+        let cleanupNeeded = !params.keep_temp;
+
+        try {
+          // Load and aggregate documentation
+          const aggregationResult = await loadAndAggregateDocs(
+            tempDir,
+            params.strategy
+          );
+
+          // Check size limit
+          if (aggregationResult.aggregatedContent.length > CHARACTER_LIMIT) {
+            console.warn(`Warning: Aggregated content (${aggregationResult.aggregatedContent.length} chars) exceeds CHARACTER_LIMIT (${CHARACTER_LIMIT}). Truncating.`);
+            // Truncate to limit
+            aggregationResult.aggregatedContent = aggregationResult.aggregatedContent.substring(0, CHARACTER_LIMIT);
+          }
+
+          // Load into session
+          const contextItem = sessionManager.loadContext(
+            session.id,
+            params.context_id,
+            aggregationResult.aggregatedContent
+          );
+
+          const output = {
+            success: true,
+            context_id: params.context_id,
+            session_id: session.id,
+            metadata: {
+              ...contextItem.metadata,
+              source_url: params.url,
+              file_count: aggregationResult.fileCount,
+              total_size: aggregationResult.totalSize,
+              chunk_count: aggregationResult.chunkCount,
+              strategy: params.strategy || 'auto-detected'
+            },
+            stats: {
+              files: aggregationResult.fileCount,
+              total_size: aggregationResult.totalSize,
+              chunks: aggregationResult.chunkCount,
+              aggregated_length: aggregationResult.aggregatedContent.length
+            }
+          };
+
+          return {
+            content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
+            structuredContent: output
+          };
+        } finally {
+          // Clean up temporary directory
+          if (cleanupNeeded && tempDir) {
+            cleanupTempDir(tempDir);
+          }
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: false,
+              error: `Failed to get GitHub documentation: ${errorMessage}`
+            }, null, 2)
+          }]
+        };
+      }
     }
   );
 }

@@ -4,7 +4,7 @@ This file provides guidance to agents when working with code in this repository.
 
 ## Coding Rules
 
-**Rationale**: Keep code clean, elegant, maintainable and predictable.
+**Rationale**: Keep the codebase clean, elegant, maintainable and predictable.
 
 - Keep scripts under 300 lines.
 - Use raw pipe‑able output (no colors/emojis).
@@ -24,9 +24,9 @@ Use the provided tools to:
 5. **Execute code** - Manipulate data with JavaScript
 6. **Build answer** - Incrementally construct the response
 
-## Available Tools
+#### Available Tools
 
-### Context Management
+Context Management
 
 | Tool | Description |
 |------|-------------|
@@ -34,7 +34,7 @@ Use the provided tools to:
 | `rlm_get_context_info` | Get metadata and preview |
 | `rlm_read_context` | Read portion by chars or lines |
 
-### Decomposition
+#### Decomposition
 
 | Tool | Description |
 |------|-------------|
@@ -42,14 +42,14 @@ Use the provided tools to:
 | `rlm_get_chunks` | Retrieve specific chunk contents |
 | `rlm_suggest_strategy` | Get recommended chunking strategy |
 
-### Search
+#### Search
 
 | Tool | Description |
 |------|-------------|
 | `rlm_search_context` | Search with regex patterns |
 | `rlm_find_all` | Find all substring occurrences |
 
-### Code Execution
+#### Code Execution
 
 | Tool | Description |
 |------|-------------|
@@ -57,14 +57,14 @@ Use the provided tools to:
 | `rlm_set_variable` | Store variable in session |
 | `rlm_get_variable` | Retrieve variable |
 
-### Answer Management
+#### Answer Management
 
 | Tool | Description |
 |------|-------------|
 | `rlm_set_answer` | Set/update answer (partial or final) |
 | `rlm_get_answer` | Get current answer state |
 
-### Session & Utilities
+#### Session & Utilities
 
 | Tool | Description |
 |------|-------------|
@@ -72,8 +72,9 @@ Use the provided tools to:
 | `rlm_get_session_info` | Get session details |
 | `rlm_clear_session` | Clear session data |
 | `rlm_get_statistics` | Get detailed statistics |
+| `rlm_get_github_docs` | Download GitHub documentation and load into session |
 
-## Decomposition Strategies
+#### Decomposition Strategies
 
 | Strategy | Description | Best For |
 |----------|-------------|----------|
@@ -84,7 +85,7 @@ Use the provided tools to:
 | `by_regex` | Split on custom pattern | Custom formats |
 | `by_sentences` | Split into sentences | Dense text |
 
-## REPL Environment Functions
+#### REPL Environment Functions
 
 When using `rlm_execute_code`:
 
@@ -130,3 +131,23 @@ getAnswer()                       // Get answer state
 JSON.parse(str)                   // Parse
 JSON.stringify(obj, indent)       // Stringify
 ```
+
+#### GitHub Documentation Workflow for RLM MCP Server
+
+**Rationale**: Retrieve any github documentation recursive searchable and structured by simply using its url. Use the `rlm_get_github_docs` tool to download, aggregate, and load GitHub documentation in a single step:
+
+```javascript
+// Single tool call to prepare a github repo
+rlm_get_github_docs({
+  url: "https://github.com/owner/repo/tree/main/docs",
+  context_id: "repo-docs",
+  strategy: "by_sections" // Optional: auto-detected by default
+})
+```
+
+**Parameters**:
+- `url` (required): GitHub URL pointing to documentation directory
+- `context_id` (optional, default: "github-docs"): Context identifier for loaded docs
+- `session_id` (optional): Session ID (default session if omitted)
+- `strategy` (optional): Override decomposition strategy (auto-detected by default)
+- `keep_temp` (optional, default: false): Keep temporary downloaded files for debugging

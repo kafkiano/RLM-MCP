@@ -166,6 +166,7 @@ Add to your MCP server configuration:
 | `rlm_get_session_info` | Get session details |
 | `rlm_clear_session` | Clear session data |
 | `rlm_get_statistics` | Get detailed statistics |
+| `rlm_get_github_docs` | Download GitHub documentation and load into session |
 
 ## Decomposition Strategies
 

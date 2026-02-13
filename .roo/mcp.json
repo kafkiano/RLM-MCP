@@ -20,7 +20,8 @@
         "rlm_suggest_strategy",
         "rlm_clear_session",
         "rlm_get_session_info",
-        "rlm_execute_code"
+        "rlm_execute_code",
+        "rlm_get_github_docs"
       ]
     }
 	}

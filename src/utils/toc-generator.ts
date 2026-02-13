@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 /**
  * Documentation TOC Generator
  * 
@@ -9,12 +7,8 @@
 
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-interface Config {
+export interface Config {
   docsDir: string;
   outputFile: string;
   contextName: string;
@@ -23,7 +17,7 @@ interface Config {
   maxPreviewChars: number;
 }
 
-const DEFAULT_CONFIG: Config = {
+export const DEFAULT_CONFIG: Config = {
   docsDir: './docs',
   outputFile: 'documentation_toc.md',
   contextName: 'docs',
@@ -32,7 +26,7 @@ const DEFAULT_CONFIG: Config = {
   maxPreviewChars: 150
 };
 
-interface FileInfo {
+export interface FileInfo {
   relativePath: string;
   fullPath: string;
   title: string;
@@ -41,7 +35,7 @@ interface FileInfo {
   lines: number;
 }
 
-class TOCGenerator {
+export class TOCGenerator {
   private config: Config;
   private fileCount = 0;
   private totalSize = 0;
@@ -54,8 +48,8 @@ class TOCGenerator {
    * Generate TOC from documentation directory
    */
   async generate(): Promise<string> {
-    console.log(`📚 Generating TOC for: ${this.config.contextName}`);
-    console.log(`📁 Source directory: ${this.config.docsDir}`);
+    console.log(`Generating TOC for: ${this.config.contextName}`);
+    console.log(`Source directory: ${this.config.docsDir}`);
 
     // Validate directory exists
     if (!fs.existsSync(this.config.docsDir)) {
@@ -72,10 +66,25 @@ class TOCGenerator {
     // Write to file
     fs.writeFileSync(this.config.outputFile, tocContent, 'utf-8');
 
-    console.log(`✅ TOC generated: ${this.config.outputFile}`);
+    console.log(`TOC generated: ${this.config.outputFile}`);
     console.log(`   Files: ${this.fileCount}, Total size: ${this.formatSize(this.totalSize)}`);
 
     return tocContent;
+  }
+
+  /**
+   * Get file list without generating TOC
+   */
+  async getFiles(): Promise<FileInfo[]> {
+    if (!fs.existsSync(this.config.docsDir)) {
+      throw new Error(`Directory not found: ${this.config.docsDir}`);
+    }
+
+    const files = this.collectFiles(this.config.docsDir);
+    this.fileCount = files.length;
+    this.totalSize = files.reduce((sum, file) => sum + file.size, 0);
+
+    return files;
   }
 
   /**
@@ -111,7 +120,7 @@ class TOCGenerator {
         }
       }
     } catch (error) {
-      console.warn(`⚠️  Warning: Could not read directory ${dir}: ${error}`);
+      console.warn(`Warning: Could not read directory ${dir}: ${error}`);
     }
 
     return files.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
@@ -151,7 +160,7 @@ class TOCGenerator {
         lines
       };
     } catch (error) {
-      console.warn(`⚠️  Warning: Could not read file ${relativePath}: ${error}`);
+      console.warn(`Warning: Could not read file ${relativePath}: ${error}`);
       return null;
     }
   }
@@ -261,7 +270,7 @@ class TOCGenerator {
     // Build tree
     for (const dir of sortedDirs) {
       const indent = '  '.repeat(dir.split('/').length - 1);
-      treeLines.push(`${indent}📁 ${path.basename(dir)}/`);
+      treeLines.push(`${indent} ${path.basename(dir)}/`);
       
       // List files in this directory
       const dirFiles = files.filter(f => path.dirname(f.relativePath) === dir);
@@ -300,51 +309,3 @@ class TOCGenerator {
     return `${size.toFixed(1)} ${units[unitIndex]}`;
   }
 }
-
-// CLI interface
-async function main() {
-  const args = process.argv.slice(2);
-  
-  // Simple CLI argument parsing
-  const config: Partial<Config> = {};
-  
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--dir' && args[i + 1]) {
-      config.docsDir = args[++i];
-    } else if (args[i] === '--output' && args[i + 1]) {
-      config.outputFile = args[++i];
-    } else if (args[i] === '--name' && args[i + 1]) {
-      config.contextName = args[++i];
-    } else if (args[i] === '--help') {
-      console.log(`
-Usage: toc-generator [options]
-
-Options:
-  --dir <path>      Documentation directory (default: ./docs)
-  --output <file>   Output TOC file (default: documentation_toc.md)
-  --name <name>     Context name for TOC header (default: docs)
-  --help            Show this help message
-
-Examples:
-  node toc-generator.ts --dir ./docs/mem0 --output mem0_toc.md --name "mem0-docs"
-      `);
-      process.exit(0);
-    }
-  }
-
-  try {
-    const generator = new TOCGenerator(config);
-    await generator.generate();
-  } catch (error) {
-    console.error(`❌ Error: ${error}`);
-    process.exit(1);
-  }
-}
-
-// Run if called directly
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main();
-}
-
-export { TOCGenerator, DEFAULT_CONFIG };
-export type { Config, FileInfo };

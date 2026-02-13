@@ -393,3 +393,36 @@ export const GetStatisticsInputSchema = z.object({
 }).strict();
 
 export type GetStatisticsInput = z.infer<typeof GetStatisticsInputSchema>;
+
+// ============================================
+// GitHub Documentation Tools
+// ============================================
+
+/**
+ * Get GitHub documentation and load into session
+ */
+export const GetGitHubDocsInputSchema = z.object({
+  url: z.string()
+    .url()
+    .describe('GitHub URL pointing to documentation directory (e.g., https://github.com/owner/repo/tree/main/docs)'),
+  
+  context_id: z.string()
+    .min(1)
+    .max(100)
+    .default('github-docs')
+    .describe('Context identifier for the loaded documentation'),
+  
+  session_id: z.string()
+    .optional()
+    .describe('Session ID (default session if omitted)'),
+  
+  strategy: z.nativeEnum(DecompositionStrategy)
+    .optional()
+    .describe('Override decomposition strategy (auto-detected by default)'),
+  
+  keep_temp: z.boolean()
+    .default(false)
+    .describe('Keep temporary downloaded files for debugging')
+}).strict();
+
+export type GetGitHubDocsInput = z.infer<typeof GetGitHubDocsInputSchema>;
