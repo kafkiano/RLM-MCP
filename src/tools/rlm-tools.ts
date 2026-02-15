@@ -35,6 +35,7 @@ import {
   SuggestStrategyInputSchema,
   GetStatisticsInputSchema,
   GetGitHubDocsInputSchema,
+  GetGitIngestInputSchema,
   type LoadContextInput,
   type GetContextInfoInput,
   type ReadContextInput,
@@ -52,11 +53,13 @@ import {
   type ClearSessionInput,
   type SuggestStrategyInput,
   type GetStatisticsInput,
-  type GetGitHubDocsInput
+  type GetGitHubDocsInput,
+  type GetGitIngestInput
 } from '../schemas/tools.js';
 import { CHARACTER_LIMIT } from '../constants.js';
 import { downloadGitHubDocs, checkGhDocsDownloadAvailable, cleanupTempDir } from '../utils/github-downloader.js';
 import { loadAndAggregateDocs } from '../utils/aggregator.js';
+import { runGitIngest } from '../utils/gitingest-adapter.js';
 
 /**
  * Register all RLM tools with the MCP server
@@ -1013,6 +1016,125 @@ cleans up temporary files after loading (unless keep_temp is true).`,
             text: JSON.stringify({
               success: false,
               error: `Failed to get GitHub documentation: ${errorMessage}`
+            }, null, 2)
+          }]
+        };
+      }
+    }
+  );
+
+  // ============================================
+  // GitIngest Tool
+  // ============================================
+
+  server.registerTool(
+    'rlm_get_gitingest',
+    {
+      title: 'Get GitHub Repository Content via GitIngest',
+      description: `Load any GitHub repository content using GitIngest (Python CLI). Returns structured repository summary, directory tree, and file contents.
+
+GitIngest is a Python CLI tool that analyzes GitHub repositories and outputs a comprehensive summary including:
+- Repository metadata and statistics
+- Directory structure tree
+- File contents (with optional filtering)
+
+Security: This tool only accepts GitHub URLs (https://github.com/...). Local paths are rejected to maintain server‑agent security boundary.
+For local repository analysis, run GitIngest client‑side and use \`rlm_load_context\` to load the output.
+
+Example workflow:
+1. rlm_get_gitingest - Analyze GitHub repository and load content
+2. rlm_get_context_info - Understand structure and size
+3. rlm_search_context - Find relevant code sections
+4. rlm_read_context - Read specific files or portions
+
+The tool uses GitIngest (pipx install gitingest) to fetch repository content.`,
+      inputSchema: GetGitIngestInputSchema,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true
+      }
+    },
+    async (params: GetGitIngestInput) => {
+      try {
+        // Get session
+        const session = params.session_id
+          ? sessionManager.getSession(params.session_id)
+          : sessionManager.getDefaultSession();
+        
+        if (!session) {
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                success: false,
+                error: 'Session not found'
+              }, null, 2)
+            }]
+          };
+        }
+
+        // Call GitIngest
+        const result = await runGitIngest(params.url, {
+          includePatterns: params.include_patterns,
+          excludePatterns: params.exclude_patterns,
+          maxFileSize: params.max_file_size
+        });
+
+        if (!result.success) {
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                success: false,
+                error: result.error
+              }, null, 2)
+            }]
+          };
+        }
+
+        // Load content into session
+        const contextItem = sessionManager.loadContext(
+          session.id,
+          params.context_id,
+          result.content
+        );
+
+        // Apply decomposition strategy if specified
+        if (params.strategy) {
+          // Note: Decomposition is typically done on-demand by the LLM
+          // using rlm_decompose_context tool. We could pre-decompose here,
+          // but for consistency with other tools, we'll let the LLM decide.
+          // The content is loaded and ready for decomposition when needed.
+        }
+
+        const output = {
+          success: true,
+          context_id: params.context_id,
+          session_id: session.id,
+          metadata: {
+            source: result.metadata.source,
+            file_count: result.metadata.fileCount,
+            estimated_tokens: result.metadata.estimatedTokens,
+            directory_tree: result.metadata.directoryTree,
+            content_length: result.content.length,
+            strategy: params.strategy || 'none'
+          }
+        };
+
+        return {
+          content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
+          structuredContent: output
+        };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: false,
+              error: `Failed to get GitHub repository content: ${errorMessage}`
             }, null, 2)
           }]
         };

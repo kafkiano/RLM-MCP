@@ -426,3 +426,47 @@ export const GetGitHubDocsInputSchema = z.object({
 }).strict();
 
 export type GetGitHubDocsInput = z.infer<typeof GetGitHubDocsInputSchema>;
+
+// ============================================
+// GitIngest Tool
+// ============================================
+
+/**
+ * Get GitHub repository content using GitIngest (Python CLI)
+ */
+export const GetGitIngestInputSchema = z.object({
+  url: z.string()
+    .url()
+    .regex(/^https:\/\/github\.com\//, 'Must be a GitHub URL')
+    .describe('GitHub repository URL'),
+  
+  context_id: z.string()
+    .min(1)
+    .max(100)
+    .default('gitingest')
+    .describe('Context identifier for the loaded repository content'),
+  
+  session_id: z.string()
+    .optional()
+    .describe('Session ID (default session if omitted)'),
+  
+  include_patterns: z.array(z.string())
+    .optional()
+    .describe('Include files matching Unix shell-style wildcards (e.g., ["*.py", "*.js"])'),
+  
+  exclude_patterns: z.array(z.string())
+    .optional()
+    .describe('Exclude files matching Unix shell-style wildcards (e.g., ["node_modules/*", "*.log"])'),
+  
+  max_file_size: z.number()
+    .int()
+    .positive()
+    .optional()
+    .describe('Maximum file size in bytes to process (e.g., 51200 for 50KB)'),
+  
+  strategy: z.nativeEnum(DecompositionStrategy)
+    .optional()
+    .describe('Decomposition strategy for chunking (optional)')
+}).strict();
+
+export type GetGitIngestInput = z.infer<typeof GetGitIngestInputSchema>;

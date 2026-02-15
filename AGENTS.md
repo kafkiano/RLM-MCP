@@ -6,7 +6,6 @@ This file provides guidance to agents when working with code in this repository.
 
 - Project Name: `rlm-mcp-server` - Recursive Language Model (RLM) MCP Server
 
-
 ## Agent‑Specific Guidelines
 
 **WARNING – Interactive Commands**
@@ -15,8 +14,7 @@ This file provides guidance to agents when working with code in this repository.
 - The server is designed to be run as an MCP background process configured in your client (Claude Desktop, Roo Code, etc.).
 
 **Note about `npm start`:**
-- `npm start` now runs the HTTP server (`node dist/index.js --http --port=3000`) which is designed to run as a background process.
-- You can run `npm start` in a separate terminal to enable shared sessions across multiple agents (see Shared Sessions below).
+- `npm start` runs the HTTP server (`node dist/index.js --http --port=3000`) as background process.
 - For single‑agent usage, configure your MCP client to launch the server via stdio (default).
 
 **Correct Usage**
@@ -38,6 +36,15 @@ This file provides guidance to agents when working with code in this repository.
 - Fail early with clear error messages.
 - Do not engage in over engineering and create only necessary functions.
 - Git branching can be considered the norm so do not create any `.backup`files
+
+## Testing Rules
+
+**Rationale**: Ship working code not theoretical concepts.
+
+- Use `npm run build` to test if Typescript build passes without errors.
+- Test with client configured RLM MCP tool calling as explained below according the code you changed.
+
+**Example**: Use `rlm_create_session` if you changed sessions or `rlm_new_tool` if you created a new tool.
 
 ## RLM MCP Server
 
@@ -100,6 +107,7 @@ Context Management
 | `rlm_clear_session` | Clear session data |
 | `rlm_get_statistics` | Get detailed statistics |
 | `rlm_get_github_docs` | Download GitHub documentation and load into session |
+| `rlm_get_gitingest` | Load any GitHub repository content using GitIngest (Python CLI). GitHub URLs only; for local analysis run GitIngest client‑side and use `rlm_load_context`. |
 
 #### Decomposition Strategies
 

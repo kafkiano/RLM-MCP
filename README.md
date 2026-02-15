@@ -63,7 +63,7 @@ Your client's LLM uses the provided tools to:
 
 ## Installation
 
-LLMs or their clients do tool calls to this server which spawns a node instance of the server. If you do not need multi agent shared sessions there is no need to start the server as background process.
+LLMs can spawn new node instances by calling the RLM MCP Server via client mcp cofiguration. So there is normally no need to start the server as daemon. If you do not need multi agent shared sessions run `npm start`.
 
 ```bash
 # Clone or navigate to project
@@ -201,6 +201,7 @@ Edit `.roo/mcp.json` or globally
 | `rlm_clear_session` | Clear session data |
 | `rlm_get_statistics` | Get detailed statistics |
 | `rlm_get_github_docs` | Download GitHub documentation and load into session |
+| `rlm_get_gitingest` | Load any GitHub repository content using GitIngest (Python CLI) |
 
 ## Decomposition Strategies
 
@@ -279,6 +280,35 @@ rlm_get_github_docs({
 - `session_id` (optional): Session ID (default session if omitted)
 - `strategy` (optional): Override decomposition strategy (auto-detected by default)
 - `keep_temp` (optional, default: false): Keep temporary downloaded files for debugging
+
+#### GitIngest Repository Analysis
+
+**Rationale**: Analyze any GitHub repository (not just `/docs` directories) using the GitIngest Python CLI. The `rlm_get_gitingest` tool provides flexible repository analysis with file filtering and structured output including directory tree and file contents.
+
+```javascript
+// Analyze a GitHub repository with filtering
+rlm_get_gitingest({
+  url: "https://github.com/owner/repo",
+  context_id: "repo-analysis",
+  include_patterns: ["*.py", "*.js", "*.md"],
+  exclude_patterns: ["node_modules/*", "*.log"],
+  max_file_size: 51200, // 50KB limit
+  strategy: "by_lines" // Optional decomposition strategy
+})
+```
+
+**Parameters**:
+- `url` (required): GitHub repository URL (must start with `https://github.com/`)
+- `context_id` (optional, default: "gitingest"): Context identifier for loaded content
+- `session_id` (optional): Session ID (default session if omitted)
+- `include_patterns` (optional): Include files matching Unix shell-style wildcards
+- `exclude_patterns` (optional): Exclude files matching Unix shell-style wildcards
+- `max_file_size` (optional): Maximum file size in bytes to process
+- `strategy` (optional): Decomposition strategy for chunking
+
+**Security Note**: This tool only accepts GitHub URLs. Local paths are rejected to maintain server‑agent security boundary. For local repository analysis, run GitIngest client‑side and use `rlm_load_context` to load the output.
+
+**Installation Requirement**: GitIngest must be installed separately: `pipx install gitingest` (or `pip install gitingest`).
 
 ## Example Workflow
 

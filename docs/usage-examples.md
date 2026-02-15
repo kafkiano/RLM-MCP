@@ -191,6 +191,38 @@ Tool: rlm_get_variable
 User: "Find all TODO comments in this codebase and explain what needs to be done"
 ```
 
+**Approach A: Using GitIngest (for GitHub repositories)**
+
+**Step 1: Load GitHub repository using GitIngest**
+```json
+Tool: rlm_get_gitingest
+{
+  "url": "https://github.com/owner/repository",
+  "context_id": "code",
+  "include_patterns": ["*.py", "*.js", "*.ts", "*.md"],
+  "exclude_patterns": ["node_modules/*", "*.log", "dist/*"],
+  "max_file_size": 51200
+}
+```
+Response:
+```json
+{
+  "success": true,
+  "context_id": "code",
+  "session_id": "default",
+  "metadata": {
+    "source": "https://github.com/owner/repository",
+    "file_count": 147,
+    "estimated_tokens": 45230,
+    "directory_tree": "repository/\n├── src/\n│   ├── main.py\n│   ├── utils.py\n│   └── ...\n├── tests/\n├── README.md\n└── ...",
+    "content_length": 245678,
+    "strategy": "none"
+  }
+}
+```
+
+**Approach B: Manual loading (if code is already available as text)**
+
 **Step 1: Load codebase**
 ```json
 Tool: rlm_load_context
