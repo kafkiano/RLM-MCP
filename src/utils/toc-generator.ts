@@ -2,7 +2,6 @@
  * Documentation TOC Generator
  * 
  * Generates a Table of Contents for documentation repositories
- * without external dependencies like `tree` command.
  */
 
 import fs from 'fs';

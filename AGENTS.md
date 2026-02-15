@@ -2,6 +2,33 @@
 
 This file provides guidance to agents when working with code in this repository.
 
+## Overview
+
+- Project Name: `rlm-mcp-server` - Recursive Language Model (RLM) MCP Server
+
+
+## Agent‑Specific Guidelines
+
+**WARNING – Interactive Commands**
+- **DO NOT** run `npm run dev` or `npm run inspect` directly from an agent session.
+- These commands start interactive Node.js processes that will **block/stall** your agent session.
+- The server is designed to be run as an MCP background process configured in your client (Claude Desktop, Roo Code, etc.).
+
+**Note about `npm start`:**
+- `npm start` now runs the HTTP server (`node dist/index.js --http --port=3000`) which is designed to run as a background process.
+- You can run `npm start` in a separate terminal to enable shared sessions across multiple agents (see Shared Sessions below).
+- For single‑agent usage, configure your MCP client to launch the server via stdio (default).
+
+**Correct Usage**
+1. As an agent, you already have tool access via MCP – no need to start the server manually.
+2. If you need a persistent shared session across multiple agents, run the HTTP server as a background process (`npm start`) and use explicit session IDs.
+
+**Shared Sessions**
+- By default each agent gets an isolated session (session_id='default').
+- To share contexts between agents, start the HTTP server as a background process (`npm start`) and use explicit session IDs in tool calls.
+- The singleton `SessionManager` automatically shares contexts, variables, and execution state across all agents using the same `session_id` parameter.
+- HTTP mode supports concurrent access; stdio mode is limited to single‑agent usage.
+
 ## Coding Rules
 
 **Rationale**: Keep the codebase clean, elegant, maintainable and predictable.
@@ -14,7 +41,7 @@ This file provides guidance to agents when working with code in this repository.
 
 ## RLM MCP Server
 
-**Rationale**: Recursive Language Model Infrastructure Server - Enables any LLM to process arbitrarily long contexts through recursive decomposition.
+**Rationale**: Recursive Language Model (RLM) MCP Server - Infrastructure server to enable any LLM to process arbitrarily long contexts through recursive decomposition.
 
 Use the provided tools to:
 1. **Load context** - Store arbitrarily long text
@@ -134,7 +161,7 @@ JSON.stringify(obj, indent)       // Stringify
 
 #### GitHub Documentation Workflow for RLM MCP Server
 
-**Rationale**: Retrieve any github documentation recursive searchable and structured by simply using its url. Use the `rlm_get_github_docs` tool to download, aggregate, and load GitHub documentation in a single step:
+**Rationale**: Retrieve any github documentation in a recursive, searchable and structured format by its url. Use the `rlm_get_github_docs` tool to download, aggregate, and load GitHub documentation in a single step:
 
 ```javascript
 // Single tool call to prepare a github repo

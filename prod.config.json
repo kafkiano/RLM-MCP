@@ -1,0 +1,17 @@
+{
+  "apps": [
+    {
+      "name": "app",
+      "script": "node dist/index.js --http --port=3000",
+      "exec_mode": "fork",
+      "instances": 1,
+      "autorestart": true,
+      "watch": false,
+      "merge_logs": true,
+      "max_memory_restart": "2G",
+      "min_uptime": "10s",
+      "max_restarts": 10,
+      "log_file": "tmp/server.log"
+    }
+  ]
+}

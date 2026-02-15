@@ -1,4 +1,4 @@
-# RLM MCP Server - Usage Examples
+# Usage Examples: RLM MCP Server Usage Examples
 
 ## Basic Workflow
 

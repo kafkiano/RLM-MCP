@@ -60,12 +60,12 @@ async function startHttpServer(port: number = 3000): Promise<void> {
   const app = express();
   app.use(express.json({ limit: '100mb' })); // Allow large contexts
 
-  // Create a new server instance for each request (stateless)
+  // MCP endpoint with shared‑session support (stateless transport, session managed via session_id parameter)
   app.post('/mcp', async (req, res) => {
     const server = createServer();
     
     const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: undefined, // Stateless mode
+      sessionIdGenerator: undefined, // Stateless mode - session management handled by session_id parameter
     });
 
     res.on('close', () => {
@@ -126,6 +126,7 @@ async function startHttpServer(port: number = 3000): Promise<void> {
     console.error(`  - MCP endpoint: POST http://localhost:${port}/mcp`);
     console.error(`  - Health check: GET http://localhost:${port}/health`);
     console.error(`  - Server info: GET http://localhost:${port}/info`);
+    console.error(`  - Shared sessions: use session_id parameter in tool calls`);
   });
 }
 
@@ -147,9 +148,14 @@ OPTIONS:
   --help           Show this help message
 
 EXAMPLES:
-  node dist/index.js                    # Start with stdio
-  node dist/index.js --http             # Start HTTP server on port 3000
+  node dist/index.js                    # Start with stdio (default for MCP clients)
+  node dist/index.js --http             # Start HTTP server on port 3000 with shared sessions
   node dist/index.js --http --port=8080 # Start HTTP server on port 8080
+
+HTTP MODE FEATURES:
+  - Shared sessions across multiple agents via session_id parameter in tool calls
+  - Health check endpoint: GET /health
+  - Server info: GET /info
 
 MCP CLIENT CONFIG (Claude Desktop):
   {

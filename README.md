@@ -2,12 +2,18 @@
 
 **Recursive Language Model Infrastructure Server** - Enables ANY LLM to process arbitrarily long contexts through recursive decomposition.
 
+## Architectural Context
+
+The RLM MCP server sits between an LLM's limited context window and external data sources. It is **not** a persistent memory system, nor a database. It is a **processing buffer** that enables strategic information management before data enters the LLM's precious context space.
+
+Read more about reasonable use cases in the [Memory Architecture Reference](docs/memory-architecture.md).
+
 ## 🎯 Key Design Principle
 
 **No external LLM API required!** 
 
-This server provides infrastructure only - your MCP client's LLM performs all the reasoning. This means:
-- ✅ Works with any LLM (Claude, GPT, Llama, Gemini, local models, etc.)
+This server provides infrastructure only - your MCP client's LLM performs the reasoning. This means:
+- ✅ Model and client agnostic (Claude, GPT, Llama, Gemini, local models, etc.)
 - ✅ No API keys needed
 - ✅ No additional costs
 - ✅ Full control over the reasoning process
@@ -57,6 +63,7 @@ Your client's LLM uses the provided tools to:
 
 ## Installation
 
+LLMs or their clients do tool calls to this server which spawns a node instance of the server. If you do not need multi agent shared sessions there is no need to start the server as background process.
 
 ```bash
 # Clone or navigate to project
@@ -68,7 +75,7 @@ npm install
 # Build
 npm run build
 
-# Run
+# Run the server as daemon (If you need sharable multi agent sessions)
 npm start
 ```
 
@@ -311,6 +318,8 @@ Here's how an LLM might process a very long document:
    rlm_set_answer(content="Based on analysis...", ready=true)
 ```
 
+The [Usage Examples Reference](docs/usage-examples.md) contains more practical examples.
+
 ## Use Cases
 
 ### Long Document Analysis
@@ -371,22 +380,7 @@ Here's how an LLM might process a very long document:
 
 ## Running Modes
 
-### Stdio (Default)
-For MCP clients like Claude Desktop:
-```bash
-node dist/index.js
-```
-
-### HTTP
-For remote access or testing:
-```bash
-node dist/index.js --http --port=3000
-```
-
-Endpoints:
-- `POST /mcp` - MCP protocol
-- `GET /health` - Health check
-- `GET /info` - Server info
+The Server runs as daemon with `npm start` of isolated sessions there is no need to run the server as background service a simple tool call by an LLM agent client (Cline, Claude Code, Roo Code, etc.) trough configured mcp server settings is enough.
 
 ## Why This Design?
 
