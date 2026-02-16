@@ -2,9 +2,12 @@
 
 This file provides guidance to agents when working with code in this repository.
 
-## Overview
+## RLM MCP Server
 
-- Project Name: `rlm-mcp-server` - Recursive Language Model (RLM) MCP Server
+**Rationale**: Recursive Language Model (RLM) MCP Server - Infrastructure server to enable any LLM to process arbitrarily long contexts through recursive decomposition. All tools available through Client MCP Settings
+
+- Project Name: RLM MCP Server - Recursive Language Model (RLM) MCP Server
+- Tec Stack: Node v22.21.1 | NPM 10.9.4 | Express v4.21.0 | Typescript ES2022
 
 ## Agent‑Specific Guidelines
 
@@ -45,7 +48,7 @@ This file provides guidance to agents when working with code in this repository.
 - Use `npm run build` to test if Typescript build passes without errors.
 
 ### Integration Testing via RLM MCP Tools
-**CRITICAL**: As an agent working in Claude Desktop, Roo Code, Cline, Opencode, etc. you have direct access to the RLM MCP server tools. test your changes by calling the relevant tools to verify they work correctly in the live system.
+**CRITICAL**: As an agent working in Claude Desktop, Roo Code, Cline, Opencode, etc. you have direct access to the RLM MCP server tools. Test your changes by calling the relevant tools to verify they work correctly in the live system.
 
 **Testing Workflow**:
 1. **After implementing tool changes**, call the tool directly using the MCP tool interface
@@ -75,19 +78,9 @@ rlm_get_gitingest({
 - **Optional**: Run `npm start` for HTTP mode testing if you need shared sessions
 - **Prefer**: Direct MCP tool calls through the client interface
 
-## RLM MCP Server
+## Available Tools
 
-**Rationale**: Recursive Language Model (RLM) MCP Server - Infrastructure server to enable any LLM to process arbitrarily long contexts through recursive decomposition. All tools available through Client MCP Settings
-
-Use the provided tools to:
-1. **Load context** - Store arbitrarily long text
-2. **Analyze** - Understand structure and size
-3. **Decompose** - Split into chunks using various strategies
-4. **Search** - Find relevant sections with regex
-5. **Execute code** - Manipulate data with JavaScript
-6. **Build answer** - Incrementally construct the response
-
-#### Available Tools
+**Rationale**: As an LLM agent working with Claude Desktop, Roo Code, Cline, Opencode, etc. (You are if you read this!), the following tools are natively provided by your client mcp settings.
 
 Context Management
 
@@ -242,3 +235,11 @@ rlm_get_gitingest({
 **Security Note**: This tool only accepts GitHub URLs. Local paths are rejected to maintain server‑agent security boundary. For local repository analysis, run GitIngest client‑side and use `rlm_load_context` to load the output.
 
 **Auto‑decomposition feature**: When `auto_decompose=true`, the server automatically decomposes the repository content into searchable chunks using the specified strategy. This reduces LLM cognitive overhead by delivering pre‑processed content ready for `rlm_search_context` and `rlm_read_context` operations.
+
+Use the provided tools to:
+1. **Load context** - Store arbitrarily long text
+2. **Analyze** - Understand structure and size of large files
+3. **Decompose** - Split into chunks using various strategies
+4. **Search** - Find relevant sections with regex
+5. **Execute code** - Manipulate data with JavaScript
+6. **Build answer** - Incrementally construct the response
