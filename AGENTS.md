@@ -11,7 +11,7 @@ This file provides guidance to agents when working with code in this repository.
 **WARNING – Interactive Commands**
 - **DO NOT** run `npm run dev` or `npm run inspect` directly from an agent session.
 - These commands start interactive Node.js processes that will **block/stall** your agent session.
-- The server is designed to be run as an MCP background process configured in your client (Claude Desktop, Roo Code, etc.).
+- The server is designed to be run as an MCP background process configured in your client (Claude Desktop, Roo Code, Cline, Opencode, etc.). Follow your client specific instructions for MCP Server tool calling, however the tool names will always be the same as referenced below in this doc.
 
 **Note about `npm start`:**
 - `npm start` runs the HTTP server (`node dist/index.js --http --port=3000`) as background process.
@@ -41,14 +41,43 @@ This file provides guidance to agents when working with code in this repository.
 
 **Rationale**: Ship working code not theoretical concepts.
 
+### Compilation Testing
 - Use `npm run build` to test if Typescript build passes without errors.
-- Test with client configured RLM MCP tool calling as explained below according the code you changed.
 
-**Example**: Use `rlm_create_session` if you changed sessions or `rlm_new_tool` if you created a new tool.
+### Integration Testing via RLM MCP Tools
+**CRITICAL**: As an agent working in Claude Desktop, Roo Code, Cline, Opencode, etc. you have direct access to the RLM MCP server tools. test your changes by calling the relevant tools to verify they work correctly in the live system.
+
+**Testing Workflow**:
+1. **After implementing tool changes**, call the tool directly using the MCP tool interface
+2. **Verify response structure** matches expected schema and includes new features
+3. **Test edge cases** with invalid inputs, large data, etc.
+4. **Validate backward compatibility** by calling tools without new parameters
+
+**Example Test Cases**:
+- **New tool parameter**: Call `rlm_get_gitingest` with `auto_decompose=true` to verify chunks are generated
+- **Schema changes**: Call tool with both old and new parameter combinations
+- **Error handling**: Test invalid inputs produce appropriate error messages
+- **Performance**: Verify large repository processing completes within timeout
+
+**Concrete Example**:
+```javascript
+// Test the new auto_decomposition feature
+rlm_get_gitingest({
+  url: "https://github.com/kafkiano/RLM-MCP",
+  auto_decompose: true,
+  strategy: "by_sections"
+})
+// Expected: success=true, chunk_count > 0, auto_decompose=true in metadata
+```
+
+### Manual Testing Commands
+- **DO NOT** run `npm run dev` or `npm run inspect` (these block the agent session)
+- **Optional**: Run `npm start` for HTTP mode testing if you need shared sessions
+- **Prefer**: Direct MCP tool calls through the client interface
 
 ## RLM MCP Server
 
-**Rationale**: Recursive Language Model (RLM) MCP Server - Infrastructure server to enable any LLM to process arbitrarily long contexts through recursive decomposition.
+**Rationale**: Recursive Language Model (RLM) MCP Server - Infrastructure server to enable any LLM to process arbitrarily long contexts through recursive decomposition. All tools available through Client MCP Settings
 
 Use the provided tools to:
 1. **Load context** - Store arbitrarily long text
@@ -186,3 +215,40 @@ rlm_get_github_docs({
 - `session_id` (optional): Session ID (default session if omitted)
 - `strategy` (optional): Override decomposition strategy (auto-detected by default)
 - `keep_temp` (optional, default: false): Keep temporary downloaded files for debugging
+
+#### GitIngest Repository Analysis for RLM MCP Server
+
+**Rationale**: Analyze any GitHub repository (not just `/docs` directories) using the GitIngest Python CLI. The `rlm_get_gitingest` tool provides flexible repository analysis with file filtering, structured output, and optional auto‑decomposition.
+
+```javascript
+// Analyze a GitHub repository with auto‑decomposition enabled
+rlm_get_gitingest({
+  url: "https://github.com/owner/repo",
+  context_id: "repo-analysis",
+  include_patterns: ["*.py", "*.js", "*.md"],
+  exclude_patterns: ["node_modules/*", "*.log"],
+  max_file_size: 51200, // 50KB limit
+  auto_decompose: true,  // Automatically decompose into chunks
+  strategy: "by_sections", // Decomposition strategy
+  chunk_size: 10000,     // Characters per chunk
+  overlap: 200           // Overlap between chunks
+})
+```
+
+**Parameters**:
+- `url` (required): GitHub repository URL (must start with `https://github.com/`)
+- `context_id` (optional, default: "gitingest"): Context identifier for loaded content
+- `session_id` (optional): Session ID (default session if omitted)
+- `include_patterns` (optional): Include files matching Unix shell-style wildcards
+- `exclude_patterns` (optional): Exclude files matching Unix shell-style wildcards
+- `max_file_size` (optional): Maximum file size in bytes to process
+- `auto_decompose` (optional, default: false): Automatically decompose content into chunks (new feature)
+- `strategy` (optional): Decomposition strategy for chunking (when auto_decompose=true)
+- `chunk_size` (optional, default: 10000): Chunk size in characters (for fixed_size strategy)
+- `overlap` (optional, default: 200): Overlap between chunks
+- `lines_per_chunk` (optional, default: 100): Lines per chunk (for by_lines strategy)
+- `pattern` (optional): Regex pattern (for by_regex strategy)
+
+**Security Note**: This tool only accepts GitHub URLs. Local paths are rejected to maintain server‑agent security boundary. For local repository analysis, run GitIngest client‑side and use `rlm_load_context` to load the output.
+
+**Auto‑decomposition feature**: When `auto_decompose=true`, the server automatically decomposes the repository content into searchable chunks using the specified strategy. This reduces LLM cognitive overhead by delivering pre‑processed content ready for `rlm_search_context` and `rlm_read_context` operations.

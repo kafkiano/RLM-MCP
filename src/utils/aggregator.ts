@@ -1,12 +1,12 @@
 /**
  * Documentation Aggregator
- * 
- * Aggregates documentation files and decomposes them using ContextProcessor.
+ *
+ * Aggregates documentation files and decomposes them using structured-decomposer.
  */
 
 import fs from 'fs';
 import path from 'path';
-import { contextProcessor } from '../services/context-processor.js';
+import { decomposeStructured } from './structured-decomposer.js';
 import { TOCGenerator, type FileInfo } from './toc-generator.js';
 import { DecompositionStrategy, StructureType } from '../types.js';
 
@@ -29,7 +29,14 @@ export interface AggregationResult {
  */
 export async function aggregateAndDecompose(
   files: FileInfo[],
-  strategy?: DecompositionStrategy
+  strategy?: DecompositionStrategy,
+  directoryTree?: string,
+  options?: {
+    chunkSize?: number;
+    overlap?: number;
+    linesPerChunk?: number;
+    pattern?: string;
+  }
 ): Promise<AggregationResult> {
   if (files.length === 0) {
     throw new Error('No documentation files to aggregate');
@@ -41,11 +48,26 @@ export async function aggregateAndDecompose(
   // Auto-detect strategy if not provided
   const finalStrategy = strategy || detectStrategyFromFiles(files);
   
-  // Decompose using ContextProcessor
-  const chunks = contextProcessor.decompose(aggregatedContent, finalStrategy, {
-    chunkSize: 10000,
-    overlap: 200
-  });
+  // Extract file paths for metadata
+  const filePaths = files.map(f => f.relativePath);
+  
+  // Decompose using structured-decomposer for consistency
+  const chunks = decomposeStructured(
+    aggregatedContent,
+    {
+      directoryTree,
+      filePaths,
+      sourceType: 'docs'
+    },
+    {
+      strategy: finalStrategy,
+      autoDetect: !strategy,
+      maxChunkSize: options?.chunkSize || 10000,
+      overlap: options?.overlap || 200,
+      linesPerChunk: options?.linesPerChunk || 100,
+      pattern: options?.pattern
+    }
+  );
 
   // Calculate total size
   const totalSize = files.reduce((sum, file) => sum + file.size, 0);
@@ -126,7 +148,14 @@ function detectStrategyFromFiles(files: FileInfo[]): DecompositionStrategy {
  */
 export async function loadAndAggregateDocs(
   docsDir: string,
-  strategy?: DecompositionStrategy
+  strategy?: DecompositionStrategy,
+  options?: {
+    chunkSize?: number;
+    overlap?: number;
+    linesPerChunk?: number;
+    pattern?: string;
+    directoryTree?: string;
+  }
 ): Promise<AggregationResult> {
   // Use TOCGenerator to get file list
   const generator = new TOCGenerator({
@@ -141,5 +170,15 @@ export async function loadAndAggregateDocs(
     throw new Error(`No documentation files found in ${docsDir}`);
   }
   
-  return aggregateAndDecompose(files, strategy);
+  return aggregateAndDecompose(
+    files,
+    strategy,
+    options?.directoryTree,
+    {
+      chunkSize: options?.chunkSize,
+      overlap: options?.overlap,
+      linesPerChunk: options?.linesPerChunk,
+      pattern: options?.pattern
+    }
+  );
 }

@@ -958,10 +958,16 @@ cleans up temporary files after loading (unless keep_temp is true).`,
         let cleanupNeeded = !params.keep_temp;
 
         try {
-          // Load and aggregate documentation
+          // Load and aggregate documentation with decomposition options
           const aggregationResult = await loadAndAggregateDocs(
             tempDir,
-            params.strategy
+            params.strategy,
+            {
+              chunkSize: params.chunk_size,
+              overlap: params.overlap,
+              // Note: github-docs doesn't have lines_per_chunk or pattern in schema,
+              // but we could add them if needed for consistency
+            }
           );
 
           // Check size limit
@@ -988,7 +994,9 @@ cleans up temporary files after loading (unless keep_temp is true).`,
               file_count: aggregationResult.fileCount,
               total_size: aggregationResult.totalSize,
               chunk_count: aggregationResult.chunkCount,
-              strategy: params.strategy || 'auto-detected'
+              strategy: params.strategy || 'auto-detected',
+              chunk_size: params.chunk_size || 10000,
+              overlap: params.overlap || 200
             },
             stats: {
               files: aggregationResult.fileCount,
@@ -1075,11 +1083,19 @@ The tool uses GitIngest (pipx install gitingest) to fetch repository content.`,
           };
         }
 
-        // Call GitIngest
+        // Call GitIngest with decomposition options if auto_decompose is true
         const result = await runGitIngest(params.url, {
           includePatterns: params.include_patterns,
           excludePatterns: params.exclude_patterns,
-          maxFileSize: params.max_file_size
+          maxFileSize: params.max_file_size,
+          decomposition: params.auto_decompose ? {
+            autoDecompose: true,
+            strategy: params.strategy,
+            chunkSize: params.chunk_size,
+            overlap: params.overlap,
+            linesPerChunk: params.lines_per_chunk,
+            pattern: params.pattern
+          } : undefined
         });
 
         if (!result.success) {
@@ -1101,12 +1117,15 @@ The tool uses GitIngest (pipx install gitingest) to fetch repository content.`,
           result.content
         );
 
-        // Apply decomposition strategy if specified
-        if (params.strategy) {
-          // Note: Decomposition is typically done on-demand by the LLM
-          // using rlm_decompose_context tool. We could pre-decompose here,
-          // but for consistency with other tools, we'll let the LLM decide.
-          // The content is loaded and ready for decomposition when needed.
+        // If chunks were generated, store them in session metadata
+        if (result.chunks && result.chunks.length > 0) {
+          // Store chunk metadata in session variables for later retrieval
+          sessionManager.setVariable(
+            session.id,
+            `${params.context_id}_chunks`,
+            result.chunks
+          );
+          console.log(`Stored ${result.chunks.length} chunks in session variables`);
         }
 
         const output = {
@@ -1119,7 +1138,9 @@ The tool uses GitIngest (pipx install gitingest) to fetch repository content.`,
             estimated_tokens: result.metadata.estimatedTokens,
             directory_tree: result.metadata.directoryTree,
             content_length: result.content.length,
-            strategy: params.strategy || 'none'
+            strategy: params.strategy || (params.auto_decompose ? 'auto' : 'none'),
+            chunk_count: result.chunks?.length || 0,
+            auto_decompose: params.auto_decompose || false
           }
         };
 

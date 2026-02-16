@@ -420,6 +420,22 @@ export const GetGitHubDocsInputSchema = z.object({
     .optional()
     .describe('Override decomposition strategy (auto-detected by default)'),
   
+  chunk_size: z.number()
+    .int()
+    .min(100)
+    .max(200000)
+    .default(10000)
+    .optional()
+    .describe('Chunk size in characters (for fixed_size strategy)'),
+  
+  overlap: z.number()
+    .int()
+    .min(0)
+    .max(10000)
+    .default(200)
+    .optional()
+    .describe('Overlap between chunks'),
+  
   keep_temp: z.boolean()
     .default(false)
     .describe('Keep temporary downloaded files for debugging')
@@ -464,9 +480,42 @@ export const GetGitIngestInputSchema = z.object({
     .optional()
     .describe('Maximum file size in bytes to process (e.g., 51200 for 50KB)'),
   
+  auto_decompose: z.boolean()
+    .default(false)
+    .optional()
+    .describe('Automatically decompose content into chunks (default: false)'),
+  
   strategy: z.nativeEnum(DecompositionStrategy)
     .optional()
-    .describe('Decomposition strategy for chunking (optional)')
+    .describe('Decomposition strategy for chunking (optional)'),
+  
+  chunk_size: z.number()
+    .int()
+    .min(100)
+    .max(200000)
+    .default(10000)
+    .optional()
+    .describe('Chunk size in characters (for fixed_size strategy)'),
+  
+  overlap: z.number()
+    .int()
+    .min(0)
+    .max(10000)
+    .default(200)
+    .optional()
+    .describe('Overlap between chunks'),
+  
+  lines_per_chunk: z.number()
+    .int()
+    .min(1)
+    .max(10000)
+    .default(100)
+    .optional()
+    .describe('Lines per chunk (for by_lines strategy)'),
+  
+  pattern: z.string()
+    .optional()
+    .describe('Regex pattern (for by_regex strategy)')
 }).strict();
 
 export type GetGitIngestInput = z.infer<typeof GetGitIngestInputSchema>;

@@ -1,9 +1,9 @@
 /**
  * GitIngest Adapter
- * 
+ *
  * Executes GitIngest CLI to analyze any GitHub repository and returns structured content.
  * GitIngest is a Python CLI tool that outputs repository summary, directory tree, and file contents.
- * 
+ *
  * Security: This adapter only accepts GitHub URLs (https://github.com/...) and rejects local paths.
  */
 
@@ -11,6 +11,8 @@ import { spawn } from 'child_process';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { CHARACTER_LIMIT } from '../constants.js';
+import { decomposeStructured, extractFilePaths } from './structured-decomposer.js';
+import { DecompositionStrategy, Chunk } from '../types.js';
 
 const execAsync = promisify(exec);
 
@@ -18,6 +20,7 @@ export interface GitIngestResult {
   success: boolean;
   content: string;
   metadata: { source: string; fileCount: number; estimatedTokens: number; directoryTree: string };
+  chunks?: Chunk[];
   error?: string;
 }
 
@@ -124,12 +127,26 @@ function parseOutput(output: string): { fileCount: number; estimatedTokens: numb
   return { fileCount, estimatedTokens, directoryTree };
 }
 
+export interface GitIngestDecompositionOptions {
+  autoDecompose?: boolean;
+  strategy?: DecompositionStrategy;
+  chunkSize?: number;
+  overlap?: number;
+  linesPerChunk?: number;
+  pattern?: string;
+}
+
 /**
  * Execute GitIngest CLI with given URL and options
  */
 export async function runGitIngest(
   url: string,
-  options?: { includePatterns?: string[]; excludePatterns?: string[]; maxFileSize?: number }
+  options?: {
+    includePatterns?: string[];
+    excludePatterns?: string[];
+    maxFileSize?: number;
+    decomposition?: GitIngestDecompositionOptions;
+  }
 ): Promise<GitIngestResult> {
   // 1. Validate URL
   if (!validateGitHubUrl(url)) {
@@ -152,8 +169,12 @@ export async function runGitIngest(
     };
   }
 
-  // 3. Build CLI arguments
-  const args = buildArgs(url, options);
+  // 3. Build CLI arguments (only pass filtering options, not decomposition options)
+  const args = buildArgs(url, {
+    includePatterns: options?.includePatterns,
+    excludePatterns: options?.excludePatterns,
+    maxFileSize: options?.maxFileSize
+  });
 
   // 4. Execute child process with timeout
   return new Promise((resolve) => {
@@ -197,6 +218,30 @@ export async function runGitIngest(
           console.warn(`Warning: GitIngest output (${content.length} chars) exceeds CHARACTER_LIMIT (${CHARACTER_LIMIT}). Truncating.`);
           content = content.substring(0, CHARACTER_LIMIT);
         }
+        
+        // Apply auto-decomposition if requested
+        let chunks: Chunk[] | undefined;
+        if (options?.decomposition?.autoDecompose) {
+          const filePaths = extractFilePaths(metadata.directoryTree);
+          chunks = decomposeStructured(
+            content,
+            {
+              directoryTree: metadata.directoryTree,
+              filePaths,
+              sourceType: 'mixed'
+            },
+            {
+              strategy: options.decomposition.strategy,
+              autoDetect: !options.decomposition.strategy,
+              maxChunkSize: options.decomposition.chunkSize,
+              overlap: options.decomposition.overlap,
+              linesPerChunk: options.decomposition.linesPerChunk,
+              pattern: options.decomposition.pattern
+            }
+          );
+          console.log(`Auto-decomposition produced ${chunks.length} chunks`);
+        }
+        
         resolve({
           success: true,
           content,
@@ -206,6 +251,7 @@ export async function runGitIngest(
             estimatedTokens: metadata.estimatedTokens,
             directoryTree: metadata.directoryTree
           },
+          chunks,
           error: undefined
         });
       } else {
