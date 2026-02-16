@@ -232,6 +232,39 @@ export function smartTruncate(
 }
 
 /**
+ * Detect optimal decomposition strategy based on content type and file paths
+ */
+export function detectOptimalStrategy(content: string, filePaths: string[]): DecompositionStrategy {
+  if (filePaths.length === 0) {
+    // No file paths, analyze content structure
+    const lines = content.split('\n');
+    const avgLineLength = content.length / Math.max(lines.length, 1);
+    return avgLineLength > 100 ? DecompositionStrategy.FIXED_SIZE : DecompositionStrategy.BY_PARAGRAPHS;
+  }
+  
+  // Check if mostly markdown
+  const markdownFiles = filePaths.filter(p => p.endsWith('.md') || p.endsWith('.mdx'));
+  if (markdownFiles.length / filePaths.length > 0.6) {
+    return DecompositionStrategy.BY_SECTIONS;
+  }
+  
+  // Check if mostly code
+  const codeFiles = filePaths.filter(p =>
+    p.endsWith('.ts') || p.endsWith('.js') || p.endsWith('.py') ||
+    p.endsWith('.java') || p.endsWith('.go') || p.endsWith('.rs') ||
+    p.endsWith('.cpp') || p.endsWith('.c') || p.endsWith('.cs')
+  );
+  if (codeFiles.length / filePaths.length > 0.6) {
+    return DecompositionStrategy.FIXED_SIZE;
+  }
+  
+  // Default based on average line length
+  const lines = content.split('\n');
+  const avgLineLength = content.length / Math.max(lines.length, 1);
+  return avgLineLength > 100 ? DecompositionStrategy.FIXED_SIZE : DecompositionStrategy.BY_PARAGRAPHS;
+}
+
+/**
  * Decompose structured content with metadata awareness
  */
 export function decomposeStructured(
@@ -282,8 +315,9 @@ export function decomposeStructured(
     } else if (metadata.sourceType === 'code') {
       finalStrategy = DecompositionStrategy.BY_LINES;
     } else if (metadata.directoryTree) {
-      // For repository content with directory tree, use sections with file awareness
-      finalStrategy = DecompositionStrategy.BY_SECTIONS;
+      // For repository content with directory tree, use enhanced detection
+      const filePaths = metadata.filePaths || extractFilePaths(metadata.directoryTree);
+      finalStrategy = detectOptimalStrategy(processedContent, filePaths);
     } else {
       // Default to fixed size
       finalStrategy = DecompositionStrategy.FIXED_SIZE;
@@ -301,12 +335,28 @@ export function decomposeStructured(
     metadata.directoryTree,
     metadata.filePaths
   );
-  
+
+  // Adjust linesPerChunk for code content
+  let adjustedLinesPerChunk = linesPerChunk;
+  if (finalStrategy === DecompositionStrategy.BY_LINES) {
+    // Check if content is mostly code
+    const filePaths = metadata.filePaths || (metadata.directoryTree ? extractFilePaths(metadata.directoryTree) : []);
+    const codeFiles = filePaths.filter(p =>
+      p.endsWith('.ts') || p.endsWith('.js') || p.endsWith('.py') ||
+      p.endsWith('.java') || p.endsWith('.go') || p.endsWith('.rs') ||
+      p.endsWith('.cpp') || p.endsWith('.c') || p.endsWith('.cs')
+    );
+    if (codeFiles.length / Math.max(filePaths.length, 1) > 0.6) {
+      // Use larger chunks for code (250 lines instead of default 100)
+      adjustedLinesPerChunk = 250;
+    }
+  }
+
   // Decompose using ContextProcessor
   const chunks = contextProcessor.decompose(processedContent, finalStrategy, {
     chunkSize: maxChunkSize,
     overlap,
-    linesPerChunk,
+    linesPerChunk: adjustedLinesPerChunk,
     pattern
   });
   

@@ -63,7 +63,9 @@ Your client's LLM uses the provided tools to:
 
 ## Installation
 
-LLMs can spawn new node instances by calling the RLM MCP Server via client mcp cofiguration. So there is normally no need to start the server as daemon. If you do not need multi agent shared sessions run `npm start`.
+LLMs can spawn new node instances by calling the RLM MCP Server via client mcp configuration. So there is no reason to start the server as a background process if you don't want to use shared sessions. 
+
+If you want shared sessions for multiple agents run `npm start`.
 
 ```bash
 # Clone or navigate to project
@@ -79,19 +81,11 @@ npm run build
 npm start
 ```
 
-⚠️ The GitHub Documentation Retrieval Tool (`rlm_get_github_docs`) needs the **GitHub Documentation Download Tool** globally installed as dependency:
+⚠️ The GitHub Repository Analysis Tool (`rlm_get_gitingest`) needs the **GitIngest** Python CLI tool installed:
 
 ```bash
-# Install cargo if needed
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-# Clone and install
-git clone https://github.com/kafkiano/gh-docs-download.git
-cd gh-docs-download
-cargo build --release
-
-# Or install directly
-cargo install --path .
+# Install via pipx
+pipx install gitingest
 ```
 
 ## MCP Client Configuration
@@ -200,7 +194,6 @@ Edit `.roo/mcp.json` or globally
 | `rlm_get_session_info` | Get session details |
 | `rlm_clear_session` | Clear session data |
 | `rlm_get_statistics` | Get detailed statistics |
-| `rlm_get_github_docs` | Download GitHub documentation and load into session |
 | `rlm_get_gitingest` | Load any GitHub repository content using GitIngest (Python CLI) |
 
 ## Decomposition Strategies
@@ -261,50 +254,49 @@ JSON.parse(str)                   // Parse
 JSON.stringify(obj, indent)       // Stringify
 ```
 
-#### GitHub Documentation Retrieval
+#### GitHub Repository Analysis with GitIngest
 
-**Rationale**: Retrieve any github documentation recursive searchable and structured by simply using its url. Use the `rlm_get_github_docs` tool to download, aggregate, and load GitHub documentation in a single step:
-
-```javascript
-// Single tool call to prepare a github repo
-rlm_get_github_docs({
-  url: "https://github.com/owner/repo/tree/main/docs",
-  context_id: "repo-docs",
-  strategy: "by_sections" // Optional: auto-detected by default
-})
-```
-
-**Parameters**:
-- `url` (required): GitHub URL pointing to documentation directory
-- `context_id` (optional, default: "github-docs"): Context identifier for loaded docs
-- `session_id` (optional): Session ID (default session if omitted)
-- `strategy` (optional): Override decomposition strategy (auto-detected by default)
-- `keep_temp` (optional, default: false): Keep temporary downloaded files for debugging
-
-#### GitIngest Repository Analysis
-
-**Rationale**: Analyze any GitHub repository (not just `/docs` directories) using the GitIngest Python CLI. The `rlm_get_gitingest` tool provides flexible repository analysis with file filtering and structured output including directory tree and file contents.
+**Rationale**: Analyze any GitHub repository (including `/docs` directories) using the GitIngest Python CLI. The `rlm_get_gitingest` tool provides flexible repository analysis with file filtering, structured output including directory tree and file contents, and optional auto‑decomposition.
 
 ```javascript
-// Analyze a GitHub repository with filtering
+// Analyze a GitHub repository with filtering and auto‑decomposition
 rlm_get_gitingest({
   url: "https://github.com/owner/repo",
   context_id: "repo-analysis",
   include_patterns: ["*.py", "*.js", "*.md"],
   exclude_patterns: ["node_modules/*", "*.log"],
   max_file_size: 51200, // 50KB limit
-  strategy: "by_lines" // Optional decomposition strategy
+  auto_decompose: true,  // Automatically decompose into chunks
+  strategy: "by_sections", // Decomposition strategy
+  chunk_size: 10000,     // Characters per chunk
+  overlap: 200           // Overlap between chunks
+})
+```
+
+**For documentation directories**: Use a subdirectory URL with `rlm_get_gitingest`:
+```javascript
+// Analyze only the /docs directory
+rlm_get_gitingest({
+  url: "https://github.com/owner/repo/tree/main/docs",
+  context_id: "repo-docs",
+  auto_decompose: true,
+  strategy: "by_sections"
 })
 ```
 
 **Parameters**:
-- `url` (required): GitHub repository URL (must start with `https://github.com/`)
+- `url` (required): GitHub repository URL (must start with `https://github.com/`). Can point to repository root or any subdirectory.
 - `context_id` (optional, default: "gitingest"): Context identifier for loaded content
 - `session_id` (optional): Session ID (default session if omitted)
 - `include_patterns` (optional): Include files matching Unix shell-style wildcards
 - `exclude_patterns` (optional): Exclude files matching Unix shell-style wildcards
 - `max_file_size` (optional): Maximum file size in bytes to process
-- `strategy` (optional): Decomposition strategy for chunking
+- `auto_decompose` (optional, default: false): Automatically decompose content into chunks
+- `strategy` (optional): Decomposition strategy for chunking (when auto_decompose=true)
+- `chunk_size` (optional, default: 10000): Chunk size in characters (for fixed_size strategy)
+- `overlap` (optional, default: 200): Overlap between chunks
+- `lines_per_chunk` (optional, default: 100): Lines per chunk (for by_lines strategy)
+- `pattern` (optional): Regex pattern (for by_regex strategy)
 
 **Security Note**: This tool only accepts GitHub URLs. Local paths are rejected to maintain server‑agent security boundary. For local repository analysis, run GitIngest client‑side and use `rlm_load_context` to load the output.
 

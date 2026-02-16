@@ -135,7 +135,6 @@ Context Management
 | `rlm_get_session_info` | Get session details |
 | `rlm_clear_session` | Clear session data |
 | `rlm_get_statistics` | Get detailed statistics |
-| `rlm_get_github_docs` | Download GitHub documentation and load into session |
 | `rlm_get_gitingest` | Load any GitHub repository content using GitIngest (Python CLI). GitHub URLs only; for local analysis run GitIngest client‑side and use `rlm_load_context`. |
 
 #### Decomposition Strategies
@@ -196,29 +195,9 @@ JSON.parse(str)                   // Parse
 JSON.stringify(obj, indent)       // Stringify
 ```
 
-#### GitHub Documentation Workflow for RLM MCP Server
+#### GitHub Repository Analysis for RLM MCP Server
 
-**Rationale**: Retrieve any github documentation in a recursive, searchable and structured format by its url. Use the `rlm_get_github_docs` tool to download, aggregate, and load GitHub documentation in a single step:
-
-```javascript
-// Single tool call to prepare a github repo
-rlm_get_github_docs({
-  url: "https://github.com/owner/repo/tree/main/docs",
-  context_id: "repo-docs",
-  strategy: "by_sections" // Optional: auto-detected by default
-})
-```
-
-**Parameters**:
-- `url` (required): GitHub URL pointing to documentation directory
-- `context_id` (optional, default: "github-docs"): Context identifier for loaded docs
-- `session_id` (optional): Session ID (default session if omitted)
-- `strategy` (optional): Override decomposition strategy (auto-detected by default)
-- `keep_temp` (optional, default: false): Keep temporary downloaded files for debugging
-
-#### GitIngest Repository Analysis for RLM MCP Server
-
-**Rationale**: Analyze any GitHub repository (not just `/docs` directories) using the GitIngest Python CLI. The `rlm_get_gitingest` tool provides flexible repository analysis with file filtering, structured output, and optional auto‑decomposition.
+**Rationale**: Analyze any GitHub repository (including `/docs` directories) using the GitIngest Python CLI. The `rlm_get_gitingest` tool provides flexible repository analysis with file filtering, structured output, and optional auto‑decomposition.
 
 ```javascript
 // Analyze a GitHub repository with auto‑decomposition enabled
@@ -235,14 +214,25 @@ rlm_get_gitingest({
 })
 ```
 
+**For documentation directories**: Use a subdirectory URL with `rlm_get_gitingest`:
+```javascript
+// Analyze only the /docs directory
+rlm_get_gitingest({
+  url: "https://github.com/owner/repo/tree/main/docs",
+  context_id: "repo-docs",
+  auto_decompose: true,
+  strategy: "by_sections"
+})
+```
+
 **Parameters**:
-- `url` (required): GitHub repository URL (must start with `https://github.com/`)
+- `url` (required): GitHub repository URL (must start with `https://github.com/`). Can point to repository root or any subdirectory.
 - `context_id` (optional, default: "gitingest"): Context identifier for loaded content
 - `session_id` (optional): Session ID (default session if omitted)
 - `include_patterns` (optional): Include files matching Unix shell-style wildcards
 - `exclude_patterns` (optional): Exclude files matching Unix shell-style wildcards
 - `max_file_size` (optional): Maximum file size in bytes to process
-- `auto_decompose` (optional, default: false): Automatically decompose content into chunks (new feature)
+- `auto_decompose` (optional, default: false): Automatically decompose content into chunks
 - `strategy` (optional): Decomposition strategy for chunking (when auto_decompose=true)
 - `chunk_size` (optional, default: 10000): Chunk size in characters (for fixed_size strategy)
 - `overlap` (optional, default: 200): Overlap between chunks

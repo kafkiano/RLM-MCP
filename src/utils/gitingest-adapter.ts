@@ -19,7 +19,14 @@ const execAsync = promisify(exec);
 export interface GitIngestResult {
   success: boolean;
   content: string;
-  metadata: { source: string; fileCount: number; estimatedTokens: number; directoryTree: string };
+  metadata: {
+    source: string;
+    fileCount: number;
+    estimatedTokens: number;
+    directoryTree: string;
+    originalLength?: number;
+    truncated?: boolean;
+  };
   chunks?: Chunk[];
   error?: string;
 }
@@ -55,6 +62,20 @@ export async function checkGitIngestAvailable(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * Validate that GitIngest output contains expected sections
+ */
+export function validateGitIngestOutput(output: string): boolean {
+  if (!output || output.trim().length === 0) {
+    return false;
+  }
+  
+  const hasDirectoryTree = output.includes('Directory structure:');
+  const hasFileContent = output.includes('FILE:') || output.includes('===') || output.includes('---');
+  
+  return hasDirectoryTree && hasFileContent;
 }
 
 /**
@@ -96,20 +117,33 @@ function parseOutput(output: string): { fileCount: number; estimatedTokens: numb
   let estimatedTokens = 0;
   let directoryTree = '';
 
-  // Try to extract metadata from summary section
-  const summaryMatch = output.match(/Files analyzed:\s*(\d+)/);
-  if (summaryMatch) {
-    fileCount = parseInt(summaryMatch[1], 10);
+  // Try multiple regex patterns for file count extraction
+  const fileCountMatch = output.match(/Files analyzed:\s*(\d+)/) ||
+                        output.match(/Total files:\s*(\d+)/) ||
+                        output.match(/(\d+)\s*files? processed/i);
+  
+  if (fileCountMatch) {
+    fileCount = parseInt(fileCountMatch[1], 10);
+  } else {
+    // Fallback: count files in directory tree (match both ├── and └── patterns)
+    const fileLines = output.match(/[├└]──\s+([^\n]+)/g) || [];
+    fileCount = fileLines.length;
   }
 
-  const tokensMatch = output.match(/Estimated tokens:\s*([\d.]+k?)/i);
+  // Token estimation with multiple patterns
+  const tokensMatch = output.match(/Estimated tokens:\s*([\d.,]+k?)/i) ||
+                     output.match(/Tokens:\s*([\d.,]+k?)/i);
+  
   if (tokensMatch) {
-    const tokenStr = tokensMatch[1];
+    const tokenStr = tokensMatch[1].replace(/,/g, '');
     if (tokenStr.endsWith('k')) {
       estimatedTokens = Math.round(parseFloat(tokenStr) * 1000);
     } else {
       estimatedTokens = parseInt(tokenStr, 10);
     }
+  } else {
+    // Fallback: approximate 0.75 tokens per character (rough LLM estimate)
+    estimatedTokens = Math.round(output.length * 0.75);
   }
 
   // Extract directory tree (between "Directory structure:" and next blank line or file delimiter)
@@ -211,12 +245,27 @@ export async function runGitIngest(
       clearTimeout(timeout);
       
       if (code === 0) {
+        // Validate output structure before parsing
+        if (!validateGitIngestOutput(stdout)) {
+          resolve({
+            success: false,
+            content: '',
+            metadata: { source: url, fileCount: 0, estimatedTokens: 0, directoryTree: '' },
+            error: 'GitIngest output appears malformed. Ensure gitingest CLI is up‑to‑date (pipx upgrade gitingest). The output should contain directory structure and file content sections.'
+          });
+          return;
+        }
+        
         const metadata = parseOutput(stdout);
-        // Ensure content doesn't exceed CHARACTER_LIMIT
+        // Track truncation
         let content = stdout;
+        const originalLength = content.length;
+        let truncated = false;
+        
         if (content.length > CHARACTER_LIMIT) {
           console.warn(`Warning: GitIngest output (${content.length} chars) exceeds CHARACTER_LIMIT (${CHARACTER_LIMIT}). Truncating.`);
           content = content.substring(0, CHARACTER_LIMIT);
+          truncated = true;
         }
         
         // Apply auto-decomposition if requested
@@ -249,7 +298,9 @@ export async function runGitIngest(
             source: url,
             fileCount: metadata.fileCount,
             estimatedTokens: metadata.estimatedTokens,
-            directoryTree: metadata.directoryTree
+            directoryTree: metadata.directoryTree,
+            originalLength,
+            truncated
           },
           chunks,
           error: undefined

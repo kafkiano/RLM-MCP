@@ -395,55 +395,6 @@ export const GetStatisticsInputSchema = z.object({
 export type GetStatisticsInput = z.infer<typeof GetStatisticsInputSchema>;
 
 // ============================================
-// GitHub Documentation Tools
-// ============================================
-
-/**
- * Get GitHub documentation and load into session
- */
-export const GetGitHubDocsInputSchema = z.object({
-  url: z.string()
-    .url()
-    .describe('GitHub URL pointing to documentation directory (e.g., https://github.com/owner/repo/tree/main/docs)'),
-  
-  context_id: z.string()
-    .min(1)
-    .max(100)
-    .default('github-docs')
-    .describe('Context identifier for the loaded documentation'),
-  
-  session_id: z.string()
-    .optional()
-    .describe('Session ID (default session if omitted)'),
-  
-  strategy: z.nativeEnum(DecompositionStrategy)
-    .optional()
-    .describe('Override decomposition strategy (auto-detected by default)'),
-  
-  chunk_size: z.number()
-    .int()
-    .min(100)
-    .max(200000)
-    .default(10000)
-    .optional()
-    .describe('Chunk size in characters (for fixed_size strategy)'),
-  
-  overlap: z.number()
-    .int()
-    .min(0)
-    .max(10000)
-    .default(200)
-    .optional()
-    .describe('Overlap between chunks'),
-  
-  keep_temp: z.boolean()
-    .default(false)
-    .describe('Keep temporary downloaded files for debugging')
-}).strict();
-
-export type GetGitHubDocsInput = z.infer<typeof GetGitHubDocsInputSchema>;
-
-// ============================================
 // GitIngest Tool
 // ============================================
 
@@ -516,6 +467,35 @@ export const GetGitIngestInputSchema = z.object({
   pattern: z.string()
     .optional()
     .describe('Regex pattern (for by_regex strategy)')
-}).strict();
+}).strict()
+.refine((data) => {
+  if (!data.auto_decompose) {
+    // If auto_decompose is false, warn if decomposition parameters are explicitly set (not just defaults)
+    // We'll allow default values but warn in the tool implementation
+    return true;
+  }
+  return true;
+}, {
+  message: "Decomposition parameters (strategy, chunk_size, overlap, lines_per_chunk, pattern) are only used when auto_decompose=true. Default values are ignored unless auto_decompose is enabled."
+})
+.describe(`Get GitHub repository content using GitIngest (Python CLI).
+
+Parameters:
+- url: GitHub repository URL (must start with https://github.com/)
+- context_id: Context identifier for loaded content (default: "gitingest")
+- session_id: Session ID (optional, uses default session if omitted)
+- include_patterns: Include files matching Unix shell-style wildcards
+- exclude_patterns: Exclude files matching Unix shell-style wildcards
+- max_file_size: Maximum file size in bytes to process
+- auto_decompose: Automatically decompose content into chunks (default: false)
+
+Decomposition parameters (only used when auto_decompose=true):
+- strategy: Decomposition strategy for chunking
+- chunk_size: Chunk size in characters (for fixed_size strategy, default: 10000)
+- overlap: Overlap between chunks (default: 200)
+- lines_per_chunk: Lines per chunk (for by_lines strategy, default: 100)
+- pattern: Regex pattern (for by_regex strategy)
+
+Note: Decomposition parameters are ignored unless auto_decompose is set to true.`);
 
 export type GetGitIngestInput = z.infer<typeof GetGitIngestInputSchema>;
