@@ -12,20 +12,31 @@ The RLM MCP server sits between an LLM's limited context window and external dat
 
 ## 2. Forensic Evidence (From Live Test)
 
-### GitHub Documentation Workflow Test
+### GitIngest Repository Analysis
 ```javascript
-// Single tool call loaded 16.5KB of RLM documentation
-rlm_get_github_docs({
-  url: "https://github.com/alexzhang13/rlm/tree/main/docs",
-  context_id: "rlm-docs"
+// Single tool call ingested entire GitIngest repository (421KB raw)
+rlm_get_gitingest({
+  url: "https://github.com/coderamp-labs/gitingest",
+  context_id: "gitingest-analysis",
+  auto_decompose: true,
+  strategy: "by_sections"
 })
 ```
 
 **Results**:
-- 16,510 characters (820 lines, 2,073 words) loaded
-- Auto-chunked into 93 searchable segments
-- Zero context window pollution (data stays server-side)
+- 42 files detected (was 0 before parsing fixes)
+- 15,200 estimated tokens (was 0 before token estimation fixes)
+- 421,530 characters raw → 100,000 after smart truncation (`truncated: true`)
+- Auto‑chunked into 138 searchable segments (`by_sections` strategy)
+- Zero context window pollution (data stays server‑side)
 - Full search, analysis, and REPL execution capabilities
+
+**ACTION_PLAN Improvements Validated**:
+1. **Metadata parsing**: Multi‑pattern regex + directory‑tree fallback → accurate file counts
+2. **Truncation transparency**: `truncated` flag + `original_length` in metadata
+3. **Optimized decomposition**: Content‑aware defaults (`by_sections` for markdown, `fixed_size` for code)
+4. **Enhanced error feedback**: Clear installation guidance, output validation
+5. **Schema clarification**: Documentation explicitly states parameter relationships
 
 ### Session Characteristics
 - **Ephemeral**: Process-bound, lost on restart
