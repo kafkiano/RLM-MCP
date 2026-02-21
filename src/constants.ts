@@ -16,7 +16,7 @@ export const MAX_SEARCH_RESULTS = 500;      // Max search results
 
 // Chunking defaults
 export const DEFAULT_CHUNK_SIZE = 10000;    // Characters per chunk
-export const DEFAULT_OVERLAP = 200;         // Overlap between chunks
+export const DEFAULT_OVERLAP = 500;         // Overlap between chunks (increased from 200 for better cross-chunk pattern matching)
 export const DEFAULT_LINES_PER_CHUNK = 100; // Lines per chunk
 
 // Code execution

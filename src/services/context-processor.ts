@@ -290,14 +290,28 @@ export class ContextProcessor {
       contextChars?: number;
       maxResults?: number;
       includeLineNumbers?: boolean;
+      scope?: 'content' | 'paths' | 'all';
     } = {}
   ): SearchMatch[] {
     const {
       flags = 'gi',
       contextChars = 100,
       maxResults = MAX_SEARCH_RESULTS,
-      includeLineNumbers = true
+      includeLineNumbers = true,
+      scope = 'all'
     } = options;
+
+    // Apply scope filtering
+    let searchableContent = content;
+    if (scope === 'content') {
+      // Extract only FILE: sections (excludes directory tree)
+      const fileSections = content.split(/={10,}\nFILE:/).slice(1);
+      searchableContent = fileSections.join('\n');
+    } else if (scope === 'paths') {
+      // Extract directory tree only
+      const treeMatch = content.match(/Directory structure:[\s\S]*?(?====|$)/);
+      searchableContent = treeMatch ? treeMatch[0] : '';
+    }
 
     const results: SearchMatch[] = [];
     
@@ -305,20 +319,20 @@ export class ContextProcessor {
       const regex = new RegExp(pattern, flags);
       let match;
       
-      while ((match = regex.exec(content)) !== null && results.length < maxResults) {
+      while ((match = regex.exec(searchableContent)) !== null && results.length < maxResults) {
         const start = Math.max(0, match.index - contextChars);
-        const end = Math.min(content.length, match.index + match[0].length + contextChars);
+        const end = Math.min(searchableContent.length, match.index + match[0].length + contextChars);
         
         let lineNumber = 0;
         if (includeLineNumbers) {
-          lineNumber = content.slice(0, match.index).split('\n').length;
+          lineNumber = searchableContent.slice(0, match.index).split('\n').length;
         }
 
         results.push({
           match: match[0],
           index: match.index,
           lineNumber,
-          context: content.slice(start, end),
+          context: searchableContent.slice(start, end),
           groups: match.slice(1)
         });
 

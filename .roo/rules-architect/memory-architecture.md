@@ -17,9 +17,7 @@ The RLM MCP server sits between an LLM's limited context window and external dat
 // Single tool call ingested entire GitIngest repository (421KB raw)
 rlm_get_gitingest({
   url: "https://github.com/coderamp-labs/gitingest",
-  context_id: "gitingest-analysis",
-  auto_decompose: true,
-  strategy: "by_sections"
+  context_id: "gitingest-analysis"
 })
 ```
 
@@ -27,16 +25,16 @@ rlm_get_gitingest({
 - 42 files detected (was 0 before parsing fixes)
 - 15,200 estimated tokens (was 0 before token estimation fixes)
 - 421,530 characters raw → 100,000 after smart truncation (`truncated: true`)
-- Auto‑chunked into 138 searchable segments (`by_sections` strategy)
+- Auto‑chunked into 138 searchable segments (strategy auto-detected)
 - Zero context window pollution (data stays server‑side)
 - Full search, analysis, and REPL execution capabilities
 
 **ACTION_PLAN Improvements Validated**:
 1. **Metadata parsing**: Multi‑pattern regex + directory‑tree fallback → accurate file counts
 2. **Truncation transparency**: `truncated` flag + `original_length` in metadata
-3. **Optimized decomposition**: Content‑aware defaults (`by_sections` for markdown, `fixed_size` for code)
+3. **Optimized decomposition**: Content‑aware defaults (auto-detected strategy based on content type)
 4. **Enhanced error feedback**: Clear installation guidance, output validation
-5. **Schema clarification**: Documentation explicitly states parameter relationships
+5. **Simplified API**: Removed 6 decomposition parameters, auto-decomposition always enabled
 
 ### Session Characteristics
 - **Ephemeral**: Process-bound, lost on restart

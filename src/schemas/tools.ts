@@ -213,7 +213,11 @@ export const SearchContextInputSchema = z.object({
   
   include_line_numbers: z.boolean()
     .default(true)
-    .describe('Include line numbers in results')
+    .describe('Include line numbers in results'),
+  
+  search_scope: z.enum(['content', 'paths', 'all'])
+    .default('all')
+    .describe('Search scope: content (file contents only), paths (directory tree only), all (entire context)')
 }).strict();
 
 export type SearchContextInput = z.infer<typeof SearchContextInputSchema>;
@@ -402,100 +406,26 @@ export type GetStatisticsInput = z.infer<typeof GetStatisticsInputSchema>;
  * Get GitHub repository content using GitIngest (Python CLI)
  */
 export const GetGitIngestInputSchema = z.object({
-  url: z.string()
-    .url()
-    .regex(/^https:\/\/github\.com\//, 'Must be a GitHub URL')
-    .describe('GitHub repository URL'),
+  url: z.string().min(1),
   
   context_id: z.string()
     .min(1)
     .max(100)
-    .default('gitingest')
-    .describe('Context identifier for the loaded repository content'),
+    .default('gitingest'),
   
   session_id: z.string()
-    .optional()
-    .describe('Session ID (default session if omitted)'),
+    .optional(),
   
   include_patterns: z.array(z.string())
-    .optional()
-    .describe('Include files matching Unix shell-style wildcards (e.g., ["*.py", "*.js"])'),
+    .optional(),
   
   exclude_patterns: z.array(z.string())
-    .optional()
-    .describe('Exclude files matching Unix shell-style wildcards (e.g., ["node_modules/*", "*.log"])'),
+    .optional(),
   
   max_file_size: z.number()
     .int()
     .positive()
     .optional()
-    .describe('Maximum file size in bytes to process (e.g., 51200 for 50KB)'),
-  
-  auto_decompose: z.boolean()
-    .default(false)
-    .optional()
-    .describe('Automatically decompose content into chunks (default: false)'),
-  
-  strategy: z.nativeEnum(DecompositionStrategy)
-    .optional()
-    .describe('Decomposition strategy for chunking (optional)'),
-  
-  chunk_size: z.number()
-    .int()
-    .min(100)
-    .max(200000)
-    .default(10000)
-    .optional()
-    .describe('Chunk size in characters (for fixed_size strategy)'),
-  
-  overlap: z.number()
-    .int()
-    .min(0)
-    .max(10000)
-    .default(200)
-    .optional()
-    .describe('Overlap between chunks'),
-  
-  lines_per_chunk: z.number()
-    .int()
-    .min(1)
-    .max(10000)
-    .default(100)
-    .optional()
-    .describe('Lines per chunk (for by_lines strategy)'),
-  
-  pattern: z.string()
-    .optional()
-    .describe('Regex pattern (for by_regex strategy)')
-}).strict()
-.refine((data) => {
-  if (!data.auto_decompose) {
-    // If auto_decompose is false, warn if decomposition parameters are explicitly set (not just defaults)
-    // We'll allow default values but warn in the tool implementation
-    return true;
-  }
-  return true;
-}, {
-  message: "Decomposition parameters (strategy, chunk_size, overlap, lines_per_chunk, pattern) are only used when auto_decompose=true. Default values are ignored unless auto_decompose is enabled."
-})
-.describe(`Get GitHub repository content using GitIngest (Python CLI).
-
-Parameters:
-- url: GitHub repository URL (must start with https://github.com/)
-- context_id: Context identifier for loaded content (default: "gitingest")
-- session_id: Session ID (optional, uses default session if omitted)
-- include_patterns: Include files matching Unix shell-style wildcards
-- exclude_patterns: Exclude files matching Unix shell-style wildcards
-- max_file_size: Maximum file size in bytes to process
-- auto_decompose: Automatically decompose content into chunks (default: false)
-
-Decomposition parameters (only used when auto_decompose=true):
-- strategy: Decomposition strategy for chunking
-- chunk_size: Chunk size in characters (for fixed_size strategy, default: 10000)
-- overlap: Overlap between chunks (default: 200)
-- lines_per_chunk: Lines per chunk (for by_lines strategy, default: 100)
-- pattern: Regex pattern (for by_regex strategy)
-
-Note: Decomposition parameters are ignored unless auto_decompose is set to true.`);
+}).strict();
 
 export type GetGitIngestInput = z.infer<typeof GetGitIngestInputSchema>;

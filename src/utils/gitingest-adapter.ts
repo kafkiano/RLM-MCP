@@ -10,7 +10,7 @@
 import { spawn } from 'child_process';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { CHARACTER_LIMIT } from '../constants.js';
+import { CHARACTER_LIMIT, DEFAULT_CHUNK_SIZE, DEFAULT_OVERLAP } from '../constants.js';
 import { decomposeStructured, extractFilePaths } from './structured-decomposer.js';
 import { DecompositionStrategy, Chunk } from '../types.js';
 
@@ -162,12 +162,7 @@ function parseOutput(output: string): { fileCount: number; estimatedTokens: numb
 }
 
 export interface GitIngestDecompositionOptions {
-  autoDecompose?: boolean;
-  strategy?: DecompositionStrategy;
-  chunkSize?: number;
-  overlap?: number;
-  linesPerChunk?: number;
-  pattern?: string;
+  autoDecompose: boolean; // Internal flag, always true
 }
 
 /**
@@ -268,28 +263,22 @@ export async function runGitIngest(
           truncated = true;
         }
         
-        // Apply auto-decomposition if requested
-        let chunks: Chunk[] | undefined;
-        if (options?.decomposition?.autoDecompose) {
-          const filePaths = extractFilePaths(metadata.directoryTree);
-          chunks = decomposeStructured(
-            content,
-            {
-              directoryTree: metadata.directoryTree,
-              filePaths,
-              sourceType: 'mixed'
-            },
-            {
-              strategy: options.decomposition.strategy,
-              autoDetect: !options.decomposition.strategy,
-              maxChunkSize: options.decomposition.chunkSize,
-              overlap: options.decomposition.overlap,
-              linesPerChunk: options.decomposition.linesPerChunk,
-              pattern: options.decomposition.pattern
-            }
-          );
-          console.log(`Auto-decomposition produced ${chunks.length} chunks`);
-        }
+        // Always apply auto-decomposition with intelligent defaults
+        const filePaths = extractFilePaths(metadata.directoryTree);
+        const chunks = decomposeStructured(
+          content,
+          {
+            directoryTree: metadata.directoryTree,
+            filePaths,
+            sourceType: 'mixed'
+          },
+          {
+            autoDetect: true, // Use suggestStrategy() logic to auto-detect strategy
+            maxChunkSize: DEFAULT_CHUNK_SIZE,
+            overlap: DEFAULT_OVERLAP
+          }
+        );
+        console.log(`Auto-decomposition produced ${chunks.length} chunks`);
         
         resolve({
           success: true,

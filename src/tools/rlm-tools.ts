@@ -423,7 +423,8 @@ Examples:
           flags: params.flags,
           contextChars: params.context_chars,
           maxResults: params.max_results,
-          includeLineNumbers: params.include_line_numbers
+          includeLineNumbers: params.include_line_numbers,
+          scope: params.search_scope
         });
 
         const output = {
@@ -921,30 +922,12 @@ The tool uses GitIngest (pipx install gitingest) to fetch repository content.`,
           };
         }
 
-        // Warn if decomposition parameters are provided without auto_decompose
-        if (!params.auto_decompose && (
-          params.strategy !== undefined ||
-          params.chunk_size !== undefined ||
-          params.overlap !== undefined ||
-          params.lines_per_chunk !== undefined ||
-          params.pattern !== undefined
-        )) {
-          console.warn('Warning: Decomposition parameters (strategy, chunk_size, overlap, lines_per_chunk, pattern) are ignored because auto_decompose=false. Set auto_decompose=true to use these parameters.');
-        }
-
-        // Call GitIngest with decomposition options if auto_decompose is true
+        // Call GitIngest with auto-decomposition enabled
         const result = await runGitIngest(params.url, {
           includePatterns: params.include_patterns,
           excludePatterns: params.exclude_patterns,
           maxFileSize: params.max_file_size,
-          decomposition: params.auto_decompose ? {
-            autoDecompose: true,
-            strategy: params.strategy,
-            chunkSize: params.chunk_size,
-            overlap: params.overlap,
-            linesPerChunk: params.lines_per_chunk,
-            pattern: params.pattern
-          } : undefined
+          decomposition: { autoDecompose: true }
         });
 
         if (!result.success) {
@@ -989,9 +972,9 @@ The tool uses GitIngest (pipx install gitingest) to fetch repository content.`,
             content_length: result.content.length,
             original_length: result.metadata.originalLength || result.content.length,
             truncated: result.metadata.truncated || false,
-            strategy: params.strategy || (params.auto_decompose ? 'auto' : 'none'),
+            strategy: 'auto',
             chunk_count: result.chunks?.length || 0,
-            auto_decompose: params.auto_decompose || false
+            auto_decompose: true
           }
         };
 
