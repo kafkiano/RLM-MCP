@@ -219,7 +219,7 @@ rlm_get_gitingest({
 - `exclude_patterns` (optional): Exclude files matching Unix shell-style wildcards
 - `max_file_size` (optional): Maximum file size in bytes to process
 
-**Security Note**: This tool only accepts GitHub URLs. Local paths are rejected to maintain server‑agent security boundary. For local repository analysis, run `gitingest ./ -o tmp/digest.txt` client‑side and use `rlm_load_context` to load the output.
+**Security Note**: This tool only accepts GitHub URLs. Local paths are rejected to maintain server‑agent security boundary. For local repository analysis, run `gitingest ./ -o tmp/digest.txt` client‑side and use `rlm_load_file` to load the output (server-side file loading prevents context pollution).
 
 **Auto‑decomposition feature**: Content is automatically decomposed into searchable chunks using intelligent defaults (strategy auto-detected based on content type). This reduces LLM cognitive overhead by delivering pre‑processed content ready for `rlm_search_context` and `rlm_read_context` operations.
 
