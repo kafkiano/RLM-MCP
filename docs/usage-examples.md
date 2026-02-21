@@ -1,5 +1,7 @@
 # Usage Examples: RLM MCP Server Usage Examples
 
+---
+
 ## Basic Workflow
 
 ### Example 1: Process a Long Document
@@ -216,30 +218,99 @@ Response:
     "estimated_tokens": 45230,
     "directory_tree": "repository/\n├── src/\n│   ├── main.py\n│   ├── utils.py\n│   └── ...\n├── tests/\n├── README.md\n└── ...",
     "content_length": 245678,
-    "strategy": "none"
+    "strategy": "auto",
+    "chunk_count": 25,
+    "auto_decompose": true
   }
 }
 ```
 
-**Approach B: Manual loading (if code is already available as text)**
+**Approach B: GitIngest + RLM workflow (for local repositories)**
 
-**Step 1: Load codebase**
+This approach is ideal when you want to analyze a local repository with an LLM that doesn't have direct `rlm_get_gitingest` access (e.g., GLM‑4.7, Claude‑Desktop, etc.). It combines GitIngest CLI for repository digestion and RLM tools for strategic decomposition.
+
+**Step 1: Generate repository digest locally**
+```bash
+# Navigate to your repository root
+gitingest ./ -o tmp/digest.txt
+
+# Optional: Apply filtering to focus analysis
+gitingest ./ \
+  --include-pattern "*.py" --include-pattern "*.js" --include-pattern "*.md" \
+  --exclude-pattern "node_modules/*" --exclude-pattern "*.log" \
+  --max-size 51200 \
+  -o tmp/digest.txt
+```
+
+The output (`tmp/digest.txt`) contains three structured sections:
+1. **Repository summary** – metadata, file count, token estimation
+2. **Directory structure** – hierarchical tree view
+3. **File contents** – each file wrapped with clear delimiters
+
+**Step 2: Load the digest into RLM (server-side file loading)**
 ```json
-Tool: rlm_load_context
+Tool: rlm_load_file
 {
-  "context": "... entire codebase concatenated ...",
-  "context_id": "code"
+  "file_path": "tmp/digest.txt",
+  "context_id": "repo-digest"
 }
 ```
 
-**Step 2: Search for TODOs**
+**Note**: Using `rlm_load_file` reads the file directly on the server without requiring the LLM to read it first. This prevents context window pollution when loading large files. The file path is relative to the workspace directory.
+
+**Step 3: Analyze structure and auto‑decompose**
+```json
+Tool: rlm_get_context_info
+{
+  "context_id": "repo-digest",
+  "preview_length": 500
+}
+```
+Response:
+```json
+{
+  "context_id": "repo-digest",
+  "metadata": {
+    "length": 421530,
+    "lineCount": 5185,
+    "wordCount": 87234,
+    "structure": "mixed"
+  },
+  "preview": "Directory structure:\n└── rlm-mcp-server/\n    ├── README.md\n    ├── AGENTS.md\n    ..."
+}
+```
+
+**Step 4: Decompose using intelligent defaults**
+```json
+Tool: rlm_decompose_context
+{
+  "context_id": "repo-digest",
+  "strategy": "by_sections",
+  "return_content": false
+}
+```
+Response:
+```json
+{
+  "total_chunks": 138,
+  "strategy": "by_sections",
+  "chunks": [
+    { "index": 0, "start_offset": 0, "end_offset": 1234, "length": 1234, "level": 1, "title": "Directory structure" },
+    { "index": 1, "start_offset": 1234, "end_offset": 5678, "length": 4444, "level": 1, "title": "FILE: README.md" },
+    ...
+  ]
+}
+```
+
+**Step 5: Search for TODOs (excluding directory tree noise)**
 ```json
 Tool: rlm_search_context
 {
-  "context_id": "code",
+  "context_id": "repo-digest",
   "pattern": "TODO:?\\s*(.+)",
   "context_chars": 300,
-  "max_results": 100
+  "max_results": 100,
+  "search_scope": "content"
 }
 ```
 Response:
@@ -260,18 +331,26 @@ Response:
 }
 ```
 
-**Step 3: Decompose for detailed analysis**
+**Step 6: Get relevant chunks for detailed analysis**
 ```json
-Tool: rlm_decompose_context
+Tool: rlm_get_chunks
 {
-  "context_id": "code",
-  "strategy": "by_lines",
-  "lines_per_chunk": 200
+  "context_id": "repo-digest",
+  "chunk_indices": [1, 5, 12],  // Chunks containing TODO matches
+  "strategy": "by_sections"
 }
 ```
 
-**Step 4: Get chunks containing TODOs**
-Based on line numbers from search results, get the relevant chunks for context.
+**Why this workflow works:**
+- **GitIngest CLI** does the heavy lifting of fetching, cleaning, and structuring the repository
+- **RLM tools** provide strategic decomposition, search, and selective reading
+- **No context window pollution** – the LLM only brings relevant sections into its working memory
+- **Cross‑LLM compatible** – works with any LLM that has RLM tool access (GLM‑4.7, Claude‑Desktop, etc.)
+
+**Comparison with `rlm_get_gitingest`:**
+- **Similarities**: Both deliver structured repository content ready for decomposition
+- **Differences**: Manual workflow gives you control over filtering and intermediate files; `rlm_get_gitingest` automates everything in one call
+- **Use manual when**: You need to pre‑process the repository offline, share digest files, or work with LLMs that lack direct GitIngest tool access
 
 ---
 

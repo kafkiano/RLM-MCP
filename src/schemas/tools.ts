@@ -11,12 +11,40 @@ import { ResponseFormat, DecompositionStrategy } from '../types.js';
 // ============================================
 
 /**
- * Load context into session
+ * Load context into session (supports both direct content and file path)
  */
 export const LoadContextInputSchema = z.object({
   context: z.string()
-    .min(1, 'Context is required')
-    .describe('The text content to load'),
+    .optional()
+    .describe('The text content to load (optional if file_path provided)'),
+  
+  file_path: z.string()
+    .optional()
+    .describe('Path to file relative to workspace directory (optional if context provided)'),
+  
+  context_id: z.string()
+    .min(1)
+    .max(100)
+    .default('main')
+    .describe('Unique identifier for this context (default: "main")'),
+  
+  session_id: z.string()
+    .optional()
+    .describe('Session ID. If not provided, uses default session')
+}).strict().refine(
+  data => !!(data.context || data.file_path),
+  { message: 'Either context or file_path must be provided' }
+);
+
+export type LoadContextInput = z.infer<typeof LoadContextInputSchema>;
+
+/**
+ * Load file into session (server-side file reading)
+ */
+export const LoadFileInputSchema = z.object({
+  file_path: z.string()
+    .min(1, 'File path is required')
+    .describe('Path to file relative to workspace directory'),
   
   context_id: z.string()
     .min(1)
@@ -29,7 +57,7 @@ export const LoadContextInputSchema = z.object({
     .describe('Session ID. If not provided, uses default session')
 }).strict();
 
-export type LoadContextInput = z.infer<typeof LoadContextInputSchema>;
+export type LoadFileInput = z.infer<typeof LoadFileInputSchema>;
 
 /**
  * Get context info/metadata

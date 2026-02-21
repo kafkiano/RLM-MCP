@@ -16,8 +16,11 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { sessionManager } from '../services/session-manager.js';
 import { contextProcessor } from '../services/context-processor.js';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 import {
   LoadContextInputSchema,
+  LoadFileInputSchema,
   GetContextInfoInputSchema,
   ReadContextInputSchema,
   DecomposeContextInputSchema,
@@ -36,6 +39,7 @@ import {
   GetStatisticsInputSchema,
   GetGitIngestInputSchema,
   type LoadContextInput,
+  type LoadFileInput,
   type GetContextInfoInput,
   type ReadContextInput,
   type DecomposeContextInput,
@@ -72,13 +76,15 @@ export function registerRLMTools(server: McpServer): void {
       title: 'Load Context',
       description: `Load text content into the RLM session for processing.
 
+Supports both direct content string and server-side file loading.
+
 This is typically the first step in RLM processing. Load your long context here,
 then use other tools to decompose, search, and analyze it.
 
 The context is stored in the session and can be referenced by its ID in other tools.
 
 Example workflow:
-1. rlm_load_context - Load your document
+1. rlm_load_context - Load your document (via context string or file_path)
 2. rlm_get_context_info - Understand structure and size
 3. rlm_decompose_context - Split into manageable chunks
 4. rlm_search_context - Find relevant sections
@@ -93,7 +99,7 @@ Example workflow:
       }
     },
     async (params: LoadContextInput) => {
-      const session = params.session_id 
+      const session = params.session_id
         ? sessionManager.getSession(params.session_id)
         : sessionManager.getDefaultSession();
       
@@ -103,16 +109,45 @@ Example workflow:
         };
       }
 
+      let content: string;
+      
+      // Load from file if file_path provided
+      if (params.file_path) {
+        const fullPath = path.resolve(process.cwd(), params.file_path);
+        
+        // Security: Ensure path is within workspace directory
+        const workspaceDir = process.cwd();
+        if (!fullPath.startsWith(workspaceDir)) {
+          return {
+            content: [{ type: 'text', text: `Error: Access denied: Path "${params.file_path}" is outside workspace directory` }]
+          };
+        }
+        
+        // Read file content
+        try {
+          content = await fs.readFile(fullPath, 'utf-8');
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          return {
+            content: [{ type: 'text', text: `Error: Failed to read file "${params.file_path}": ${errorMessage}` }]
+          };
+        }
+      } else {
+        // Use provided context string
+        content = params.context!;
+      }
+
       const contextItem = sessionManager.loadContext(
         session.id,
         params.context_id,
-        params.context
+        content
       );
 
       const output = {
         success: true,
         context_id: params.context_id,
         session_id: session.id,
+        ...(params.file_path && { file_path: params.file_path }),
         metadata: contextItem.metadata
       };
 
@@ -120,6 +155,72 @@ Example workflow:
         content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
         structuredContent: output
       };
+    }
+  );
+
+  server.registerTool(
+    'rlm_load_file',
+    {
+      title: 'Load File',
+      description: `Load file content into the RLM session (server-side file reading).
+
+This tool reads files directly on the server without requiring the LLM to read them first.
+This prevents context pollution when loading large files.
+
+The file path is relative to the workspace directory. Only files within the workspace
+can be loaded for security reasons.
+
+Example workflow:
+1. rlm_load_file - Load a large file (e.g., tmp/digest.txt)
+2. rlm_get_context_info - Understand structure and size
+3. rlm_decompose_context - Split into manageable chunks
+4. rlm_search_context - Find relevant sections
+5. rlm_read_context - Read specific portions
+6. rlm_set_answer - Build up your response`,
+      inputSchema: LoadFileInputSchema,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false
+      }
+    },
+    async (params: LoadFileInput) => {
+      const session = params.session_id
+        ? sessionManager.getSession(params.session_id)
+        : sessionManager.getDefaultSession();
+      
+      if (!session) {
+        return {
+          content: [{ type: 'text', text: 'Error: Session not found' }]
+        };
+      }
+
+      try {
+        const contextItem = await sessionManager.loadContextFromFile(
+          session.id,
+          params.context_id,
+          params.file_path
+        );
+
+        const output = {
+          success: true,
+          context_id: params.context_id,
+          session_id: session.id,
+          file_path: params.file_path,
+          metadata: contextItem.metadata
+        };
+
+        return {
+          content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
+          structuredContent: output
+        };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return {
+          content: [{ type: 'text', text: `Error: ${errorMessage}` }]
+        };
+      }
     }
   );
 

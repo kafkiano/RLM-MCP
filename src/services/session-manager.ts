@@ -14,8 +14,11 @@ import {
   SESSION_TIMEOUT_MS,
   MAX_SESSIONS,
   CODE_EXECUTION_TIMEOUT_MS,
-  MAX_REPL_OUTPUT
+  MAX_REPL_OUTPUT,
+  CHARACTER_LIMIT
 } from '../constants.js';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
 export class SessionManager {
   private sessions: Map<string, REPLSession> = new Map();
@@ -99,6 +102,56 @@ export class SessionManager {
     content: string
   ): ContextItem {
     const session = this.getSession(sessionId) || this.getDefaultSession();
+    
+    const metadata = this.analyzeContent(content);
+    
+    const contextItem: ContextItem = {
+      id: contextId,
+      content,
+      metadata,
+      createdAt: new Date()
+    };
+
+    session.contexts.set(contextId, contextItem);
+    return contextItem;
+  }
+
+  /**
+   * Load context from file into a session (server-side file reading)
+   */
+  async loadContextFromFile(
+    sessionId: string,
+    contextId: string,
+    filePath: string
+  ): Promise<ContextItem> {
+    const session = this.getSession(sessionId) || this.getDefaultSession();
+    
+    // Resolve path relative to workspace directory
+    const fullPath = path.resolve(process.cwd(), filePath);
+    
+    // Security: Ensure path is within workspace directory
+    const workspaceDir = process.cwd();
+    if (!fullPath.startsWith(workspaceDir)) {
+      throw new Error(
+        `Access denied: Path "${filePath}" is outside workspace directory`
+      );
+    }
+    
+    // Read file content
+    let content: string;
+    try {
+      content = await fs.readFile(fullPath, 'utf-8');
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`Failed to read file "${filePath}": ${error.message}`);
+      }
+      throw new Error(`Failed to read file "${filePath}"`);
+    }
+    
+    // Enforce character limit
+    if (content.length > CHARACTER_LIMIT) {
+      content = content.slice(0, CHARACTER_LIMIT);
+    }
     
     const metadata = this.analyzeContent(content);
     
