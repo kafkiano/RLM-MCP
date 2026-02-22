@@ -192,6 +192,8 @@ JSON.stringify(obj, indent)       // Stringify
 
 #### Check detailed Usage Examples for RLM MCP Server
 
+**Rationale**: Load huge files without context pollution and make them searchable (In this case with the  detailed RLM MCP usage examples).
+
 ```javascript
 rlm_load_file({file_path: "docs/usage-examples.md"})
 rlm_suggest_strategy({context_id: "docs"}) // → Returns "by_sections"
@@ -214,6 +216,8 @@ rlm_get_gitingest({
 })
 ```
 
+**Rationale**: Most open source projects have their documentations and technical references in `/docs` directory or separate repo. The `rlm_get_gitingest` is therefore ideal for reading online docs.
+
 **For documentation directories**: Use a subdirectory URL with `rlm_get_gitingest`:
 ```javascript
 // Analyze only the /docs directory
@@ -231,7 +235,38 @@ rlm_get_gitingest({
 - `exclude_patterns` (optional): Exclude files matching Unix shell-style wildcards
 - `max_file_size` (optional): Maximum file size in bytes to process
 
-**Auto‑decomposition feature**: Content is automatically decomposed into searchable chunks using intelligent defaults (strategy auto-detected based on content type). This reduces LLM cognitive overhead by delivering pre‑processed content ready for `rlm_search_context` and `rlm_read_context` operations.
+#### Local GitHub Repository Analysis for RLM MCP Server
+
+**Rationale**: This approach is ideal when you want to analyze a local repository. The tool `rlm_get_gitingest` only accepts GitHub URLs, local paths are rejected to maintain server‑agent security boundary.
+
+**Step 1: Generate repository digest locally**
+```bash
+# From your repository root
+gitingest ./ -o tmp/digest.txt
+```
+
+The output (`tmp/digest.txt`) contains three structured sections:
+1. **Repository summary** – metadata, file count, token estimation
+2. **Directory structure** – hierarchical tree view
+3. **File contents** – each file wrapped with clear delimiters
+
+**Step 2: Load the digest with auto‑decomposition**
+```javascript
+rlm_load_file({
+  "file_path": "tmp/digest.txt",
+  "context_id": "repo-digest",
+  "filetype": "gitingest"
+})
+```
+**Note**: Using `rlm_load_file` with `filetype='gitingest'` automatically:
+- Parses GitIngest output to extract metadata (file count, tokens, directory tree)
+- Applies smart truncation if content exceeds CHARACTER_LIMIT
+- Auto-decomposes content into searchable chunks using intelligent defaults
+- Stores chunks server-side for later retrieval via `rlm_get_chunks`
+- Returns only chunk metadata (not full chunk content) to prevent context pollution
+- Reads the file directly on the server without requiring the LLM to read it first (prevents context pollution)
+
+**Auto‑decomposition feature**: Content is automatically decomposed into searchable chunks using intelligent defaults (strategy auto-detected based on content type). This reduces LLM cognitive overhead by delivering pre‑processed content ready for `rlm_get_chunks`, `rlm_search_context` and `rlm_read_context` operations.
 
 Use the provided tools to:
 1. **Load context** - Store arbitrarily long text (use `rlm_load_file` for large files to avoid context pollution)
