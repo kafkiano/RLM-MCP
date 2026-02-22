@@ -83,11 +83,12 @@ rlm_get_gitingest({
 
 Context Management
 
-| Tool | Description |
-|------|-------------|
-| `rlm_load_context` | Load text content into session |
-| `rlm_get_context_info` | Get metadata and preview |
-| `rlm_read_context` | Read portion by chars or lines |
+| Tool | Description | When to Use |
+|------|-------------|--------------|
+| `rlm_load_context` | Load text content into session (supports both direct content string and file path) | Small snippets (< 1000 chars), already-loaded content, temporary working data |
+| `rlm_load_file` | Load file content into session (server-side file reading) | Large files (> 1000 chars), files on disk, GitIngest digest files |
+| `rlm_get_context_info` | Get metadata and preview | Understand structure and size before processing |
+| `rlm_read_context` | Read portion by chars or lines | Examine specific sections without loading entire context |
 
 #### Decomposition
 
@@ -127,7 +128,7 @@ Context Management
 | `rlm_get_session_info` | Get session details |
 | `rlm_clear_session` | Clear session data |
 | `rlm_get_statistics` | Get detailed statistics |
-| `rlm_get_gitingest` | Load any GitHub repository content using GitIngest (Python CLI). GitHub URLs only; for local analysis run GitIngest client‑side and use `rlm_load_context`. |
+| `rlm_get_gitingest` | Load any GitHub repository content using GitIngest (Python CLI). GitHub URLs only; for local analysis run GitIngest client‑side and use `rlm_load_file` with `filetype='gitingest'`. |
 
 #### Decomposition Strategies
 
@@ -219,14 +220,19 @@ rlm_get_gitingest({
 - `exclude_patterns` (optional): Exclude files matching Unix shell-style wildcards
 - `max_file_size` (optional): Maximum file size in bytes to process
 
-**Security Note**: This tool only accepts GitHub URLs. Local paths are rejected to maintain server‑agent security boundary. For local repository analysis, run `gitingest ./ -o tmp/digest.txt` client‑side and use `rlm_load_file` to load the output (server-side file loading prevents context pollution).
-
 **Auto‑decomposition feature**: Content is automatically decomposed into searchable chunks using intelligent defaults (strategy auto-detected based on content type). This reduces LLM cognitive overhead by delivering pre‑processed content ready for `rlm_search_context` and `rlm_read_context` operations.
 
 Use the provided tools to:
-1. **Load context** - Store arbitrarily long text
+1. **Load context** - Store arbitrarily long text (use `rlm_load_file` for large files to avoid context pollution)
 2. **Analyze** - Understand structure and size of large files
-3. **Decompose** - Split into chunks using various strategies
+3. **Decompose** - Split into chunks using various strategies (auto-decomposed for GitIngest files)
 4. **Search** - Find relevant sections with regex
 5. **Execute code** - Manipulate data with JavaScript
 6. **Build answer** - Incrementally construct the response
+
+**Critical: Context Pollution Prevention**
+- Use `rlm_load_file` with `file_path` parameter for large files (> 1000 characters)
+- Use `rlm_load_context` with `context` parameter only for small snippets or already-loaded content
+- The `filetype` parameter in `rlm_load_file` enables specialized processing (e.g., `filetype='gitingest'` for auto-decomposition)
+
+**Security Note**: This tool only accepts GitHub URLs. Local paths are rejected to maintain server‑agent security boundary. For local repository analysis, run `gitingest ./ -o tmp/digest.txt` client‑side and use `rlm_load_file` with `filetype='gitingest'` to load the output with auto-decomposition (server-side file loading prevents context pollution).

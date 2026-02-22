@@ -156,6 +156,49 @@ LLM: "I need to understand RLM patterns"
 → Ask follow-up questions based on understanding
 ```
 
+### 6.5 Critical Warning: Context Pollution with rlm_load_context
+
+**Problem**: The `rlm_load_context` tool accepts a `context` parameter that requires the LLM to first read the content (filling its context window), then load it into RLM. This defeats the purpose of RLM which is to avoid context pollution.
+
+**Example of anti-pattern**:
+```javascript
+// BAD: LLM must read 500,000 characters first
+rlm_load_context({
+  context: "... 500,000 characters of research paper ...",
+  context_id: "paper"
+})
+```
+
+**Why this is problematic**:
+1. LLM context window fills with raw content before any analysis
+2. Client-side condensing algorithms may truncate important information
+3. Defeats the entire purpose of RLM's server-side processing
+4. Wastes tokens on content that should be processed externally
+
+**Correct pattern**: Use `rlm_load_file` with `file_path` parameter for large files:
+```javascript
+// GOOD: Server reads file directly, no context pollution
+rlm_load_file({
+  file_path: "large-document.pdf.txt",
+  context_id: "paper"
+})
+```
+
+**When to use `context` parameter**:
+- Small snippets (< 1000 characters)
+- Already-loaded content that needs to be stored for later retrieval
+- Temporary working data generated during analysis
+- Content that is already in the LLM's context and needs to be preserved
+
+**When to use `file_path` parameter**:
+- Large documents (> 1000 characters)
+- Files on disk
+- GitIngest digest files
+- Any content that would cause context pollution if read by the LLM first
+- When using `filetype` parameter for specialized processing (e.g., `filetype: "gitingest"`)
+
+**Architectural principle**: RLM exists to keep large data **outside** the LLM's context window. Any pattern that requires the LLM to read large content before loading it into RLM undermines this fundamental design goal.
+
 ### 7. Practical Implementation Guidance
 
 #### For Agent Developers

@@ -227,19 +227,12 @@ Response:
 
 **Approach B: GitIngest + RLM workflow (for local repositories)**
 
-This approach is ideal when you want to analyze a local repository with an LLM that doesn't have direct `rlm_get_gitingest` access (e.g., GLM‑4.7, Claude‑Desktop, etc.). It combines GitIngest CLI for repository digestion and RLM tools for strategic decomposition.
+This approach is ideal when you want to analyze a local repository because the `rlm_get_gitingest` tool only accepts GitHub URLs. Local paths are rejected to maintain server‑agent security boundary.
 
 **Step 1: Generate repository digest locally**
 ```bash
 # Navigate to your repository root
 gitingest ./ -o tmp/digest.txt
-
-# Optional: Apply filtering to focus analysis
-gitingest ./ \
-  --include-pattern "*.py" --include-pattern "*.js" --include-pattern "*.md" \
-  --exclude-pattern "node_modules/*" --exclude-pattern "*.log" \
-  --max-size 51200 \
-  -o tmp/digest.txt
 ```
 
 The output (`tmp/digest.txt`) contains three structured sections:
@@ -247,62 +240,52 @@ The output (`tmp/digest.txt`) contains three structured sections:
 2. **Directory structure** – hierarchical tree view
 3. **File contents** – each file wrapped with clear delimiters
 
-**Step 2: Load the digest into RLM (server-side file loading)**
+**Step 2: Load the digest with auto‑decomposition**
 ```json
 Tool: rlm_load_file
 {
   "file_path": "tmp/digest.txt",
-  "context_id": "repo-digest"
-}
-```
-
-**Note**: Using `rlm_load_file` reads the file directly on the server without requiring the LLM to read it first. This prevents context window pollution when loading large files. The file path is relative to the workspace directory.
-
-**Step 3: Analyze structure and auto‑decompose**
-```json
-Tool: rlm_get_context_info
-{
   "context_id": "repo-digest",
-  "preview_length": 500
+  "filetype": "gitingest"
 }
 ```
 Response:
 ```json
 {
+  "success": true,
   "context_id": "repo-digest",
+  "session_id": "default",
+  "file_path": "tmp/digest.txt",
+  "filetype": "gitingest",
   "metadata": {
-    "length": 421530,
-    "lineCount": 5185,
-    "wordCount": 87234,
-    "structure": "mixed"
+    "source": "tmp/digest.txt",
+    "fileCount": 42,
+    "estimatedTokens": 15200,
+    "directoryTree": "Directory structure:\n└── rlm-mcp-server/\n    ├── README.md\n    ├── AGENTS.md\n    ...",
+    "originalLength": 421530,
+    "truncated": true,
+    "contentLength": 100000,
+    "chunkCount": 138,
+    "strategy": "auto"
   },
-  "preview": "Directory structure:\n└── rlm-mcp-server/\n    ├── README.md\n    ├── AGENTS.md\n    ..."
-}
-```
-
-**Step 4: Decompose using intelligent defaults**
-```json
-Tool: rlm_decompose_context
-{
-  "context_id": "repo-digest",
-  "strategy": "by_sections",
-  "return_content": false
-}
-```
-Response:
-```json
-{
-  "total_chunks": 138,
-  "strategy": "by_sections",
   "chunks": [
-    { "index": 0, "start_offset": 0, "end_offset": 1234, "length": 1234, "level": 1, "title": "Directory structure" },
-    { "index": 1, "start_offset": 1234, "end_offset": 5678, "length": 4444, "level": 1, "title": "FILE: README.md" },
+    { "index": 0, "startOffset": 0, "endOffset": 1234, "length": 1234, "metadata": {"files": []} },
+    { "index": 1, "startOffset": 1234, "endOffset": 5678, "length": 4444, "metadata": {"files": ["README.md"]} },
+    { "index": 2, "startOffset": 5678, "endOffset": 8234, "length": 2556, "metadata": {"files": ["AGENTS.md"]} },
     ...
   ]
 }
 ```
 
-**Step 5: Search for TODOs (excluding directory tree noise)**
+**Note**: Using `rlm_load_file` with `filetype='gitingest'` automatically:
+- Parses GitIngest output to extract metadata (file count, tokens, directory tree)
+- Applies smart truncation if content exceeds CHARACTER_LIMIT
+- Auto-decomposes content into searchable chunks using intelligent defaults
+- Stores chunks server-side for later retrieval via `rlm_get_chunks`
+- Returns only chunk metadata (not full chunk content) to prevent context pollution
+- Reads the file directly on the server without requiring the LLM to read it first (prevents context pollution)
+
+**Step 3: Search for TODOs (excluding directory tree noise)**
 ```json
 Tool: rlm_search_context
 {
@@ -331,26 +314,25 @@ Response:
 }
 ```
 
-**Step 6: Get relevant chunks for detailed analysis**
+**Step 4: Get relevant chunks for detailed analysis**
 ```json
 Tool: rlm_get_chunks
 {
   "context_id": "repo-digest",
-  "chunk_indices": [1, 5, 12],  // Chunks containing TODO matches
-  "strategy": "by_sections"
+  "chunk_indices": [1, 5, 12]  // Chunks containing TODO matches
 }
 ```
 
 **Why this workflow works:**
 - **GitIngest CLI** does the heavy lifting of fetching, cleaning, and structuring the repository
-- **RLM tools** provide strategic decomposition, search, and selective reading
+- **rlm_load_file** with `filetype='gitingest'` automatically parses metadata, applies smart truncation, and decomposes into searchable chunks
 - **No context window pollution** – the LLM only brings relevant sections into its working memory
 - **Cross‑LLM compatible** – works with any LLM that has RLM tool access (GLM‑4.7, Claude‑Desktop, etc.)
 
 **Comparison with `rlm_get_gitingest`:**
-- **Similarities**: Both deliver structured repository content ready for decomposition
-- **Differences**: Manual workflow gives you control over filtering and intermediate files; `rlm_get_gitingest` automates everything in one call
-- **Use manual when**: You need to pre‑process the repository offline, share digest files, or work with LLMs that lack direct GitIngest tool access
+- **Similarities**: Both deliver structured repository content ready for decomposition with auto‑chunking
+- **Differences**: Local workflow requires manual digest generation; GitHub workflow automates everything in one call
+- **Use local when**: You need to analyze a repository on disk, pre‑process the repository offline, or share digest files
 
 ---
 
