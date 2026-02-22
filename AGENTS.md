@@ -81,7 +81,7 @@ rlm_get_gitingest({
 
 **Rationale**: As an LLM agent working with Claude Desktop, Roo Code, Cline, Opencode, etc. (You are if you read this!), the following tools are natively provided by your client mcp settings.
 
-Context Management
+#### Context Management
 
 | Tool | Description | When to Use |
 |------|-------------|--------------|

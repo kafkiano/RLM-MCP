@@ -135,18 +135,22 @@ Edit `.roo/mcp.json` (or your client specific MCP configuration) and add:
 	}
 }
 ```
-
 ## Available Tools
 
-### Context Management
+**Rationale**: As an LLM agent working with Claude Desktop, Roo Code, Cline, Opencode, etc. (You are if you read this!), the following tools are natively provided by your client mcp settings.
 
-| Tool | Description |
-|------|-------------|
-| `rlm_load_context` | Load text content into session |
-| `rlm_get_context_info` | Get metadata and preview |
-| `rlm_read_context` | Read portion by chars or lines |
+#### Context Management
 
-### Decomposition
+| Tool | Description | When to Use |
+|------|-------------|--------------|
+| `rlm_load_context` | Load content already in LLM context into ephemeral storage (any size). | Use when you need to preserve content already in your LLM context for later processing. |
+| `rlm_load_file` | Load files from disk (any size). Prevents context pollution by reading files server-side. | Use for loading files from disk without reading them into LLM context first. Always prefer this tool over `rlm_load_context` for file loading. |
+| `rlm_get_context_info` | Get metadata and preview | Understand structure and size before processing |
+| `rlm_read_context` | Read portion by chars or lines | Examine specific sections without loading entire context |
+
+**Note**: Choose `rlm_load_file` when possible to keep large data out of LLM context.
+
+#### Decomposition
 
 | Tool | Description |
 |------|-------------|
@@ -154,14 +158,14 @@ Edit `.roo/mcp.json` (or your client specific MCP configuration) and add:
 | `rlm_get_chunks` | Retrieve specific chunk contents |
 | `rlm_suggest_strategy` | Get recommended chunking strategy |
 
-### Search
+#### Search
 
 | Tool | Description |
 |------|-------------|
 | `rlm_search_context` | Search with regex patterns |
 | `rlm_find_all` | Find all substring occurrences |
 
-### Code Execution
+#### Code Execution
 
 | Tool | Description |
 |------|-------------|
@@ -169,14 +173,14 @@ Edit `.roo/mcp.json` (or your client specific MCP configuration) and add:
 | `rlm_set_variable` | Store variable in session |
 | `rlm_get_variable` | Retrieve variable |
 
-### Answer Management
+#### Answer Management
 
 | Tool | Description |
 |------|-------------|
 | `rlm_set_answer` | Set/update answer (partial or final) |
 | `rlm_get_answer` | Get current answer state |
 
-### Session & Utilities
+#### Session & Utilities
 
 | Tool | Description |
 |------|-------------|
@@ -184,9 +188,9 @@ Edit `.roo/mcp.json` (or your client specific MCP configuration) and add:
 | `rlm_get_session_info` | Get session details |
 | `rlm_clear_session` | Clear session data |
 | `rlm_get_statistics` | Get detailed statistics |
-| `rlm_get_gitingest` | Load any GitHub repository content using GitIngest (Python CLI) |
+| `rlm_get_gitingest` | Load any GitHub repository content using GitIngest (Python CLI). GitHub URLs only; for local analysis run GitIngest client‑side and use `rlm_load_file` with `filetype='gitingest'`. |
 
-## Decomposition Strategies
+#### Decomposition Strategies
 
 | Strategy | Description | Best For |
 |----------|-------------|----------|
@@ -197,7 +201,7 @@ Edit `.roo/mcp.json` (or your client specific MCP configuration) and add:
 | `by_regex` | Split on custom pattern | Custom formats |
 | `by_sentences` | Split into sentences | Dense text |
 
-## REPL Environment Functions
+#### REPL Environment Functions
 
 When using `rlm_execute_code`:
 
@@ -244,33 +248,40 @@ JSON.parse(str)                   // Parse
 JSON.stringify(obj, indent)       // Stringify
 ```
 
-#### GitHub Repository Analysis with GitIngest
+#### Check detailed Usage Examples for RLM MCP Server
 
-**Rationale**: Analyze any GitHub repository (including `/docs` directories) using the GitIngest Python CLI. The `rlm_get_gitingest` tool provides flexible repository analysis with file filtering, structured output including directory tree and file contents, and optional auto‑decomposition.
+**Rationale**: Load huge files without context pollution and make them searchable (In this case with the  detailed RLM MCP usage examples).
 
 ```javascript
-// Analyze a GitHub repository with filtering and auto‑decomposition
+rlm_load_file({file_path: "docs/usage-examples.md"})
+rlm_suggest_strategy({context_id: "docs"}) // → Returns "by_sections"
+rlm_decompose_context({context_id: "docs", strategy: "by_sections"})
+rlm_search_context({context_id: "docs", pattern: "Example 5"})
+```
+
+#### Remote GitHub Repository Analysis for RLM MCP Server
+
+**Rationale**: Analyze any GitHub repository (including `/docs` directories) using the GitIngest Python CLI. The `rlm_get_gitingest` tool provides flexible repository analysis with file filtering, structured output, and automatic decomposition with intelligent defaults.
+
+```javascript
+// Analyze a GitHub repository (auto-decomposition is always enabled)
 rlm_get_gitingest({
   url: "https://github.com/owner/repo",
   context_id: "repo-analysis",
   include_patterns: ["*.py", "*.js", "*.md"],
   exclude_patterns: ["node_modules/*", "*.log"],
-  max_file_size: 51200, // 50KB limit
-  auto_decompose: true,  // Automatically decompose into chunks
-  strategy: "by_sections", // Decomposition strategy
-  chunk_size: 10000,     // Characters per chunk
-  overlap: 200           // Overlap between chunks
+  max_file_size: 51200 // 50KB limit
 })
 ```
+
+**Rationale**: Most open source projects have their documentations and technical references in `/docs` directory or separate repo. The `rlm_get_gitingest` is therefore ideal for reading online docs.
 
 **For documentation directories**: Use a subdirectory URL with `rlm_get_gitingest`:
 ```javascript
 // Analyze only the /docs directory
 rlm_get_gitingest({
   url: "https://github.com/owner/repo/tree/main/docs",
-  context_id: "repo-docs",
-  auto_decompose: true,
-  strategy: "by_sections"
+  context_id: "repo-docs"
 })
 ```
 
@@ -281,16 +292,54 @@ rlm_get_gitingest({
 - `include_patterns` (optional): Include files matching Unix shell-style wildcards
 - `exclude_patterns` (optional): Exclude files matching Unix shell-style wildcards
 - `max_file_size` (optional): Maximum file size in bytes to process
-- `auto_decompose` (optional, default: false): Automatically decompose content into chunks
-- `strategy` (optional): Decomposition strategy for chunking (when auto_decompose=true)
-- `chunk_size` (optional, default: 10000): Chunk size in characters (for fixed_size strategy)
-- `overlap` (optional, default: 200): Overlap between chunks
-- `lines_per_chunk` (optional, default: 100): Lines per chunk (for by_lines strategy)
-- `pattern` (optional): Regex pattern (for by_regex strategy)
 
-**Security Note**: This tool only accepts GitHub URLs. Local paths are rejected to maintain server‑agent security boundary. For local repository analysis, run GitIngest client‑side and use `rlm_load_context` to load the output.
+#### Local GitHub Repository Analysis for RLM MCP Server
 
-**Installation Requirement**: GitIngest must be installed separately: `pipx install gitingest` (or `pip install gitingest`).
+**Rationale**: This approach is ideal when you want to analyze a local repository. The tool `rlm_get_gitingest` only accepts GitHub URLs, local paths are rejected to maintain server‑agent security boundary.
+
+**Step 1: Generate repository digest locally**
+```bash
+# From your repository root
+gitingest ./ -o tmp/digest.txt
+```
+
+The output (`tmp/digest.txt`) contains three structured sections:
+1. **Repository summary** – metadata, file count, token estimation
+2. **Directory structure** – hierarchical tree view
+3. **File contents** – each file wrapped with clear delimiters
+
+**Step 2: Load the digest with auto‑decomposition**
+```javascript
+rlm_load_file({
+  "file_path": "tmp/digest.txt",
+  "context_id": "repo-digest",
+  "filetype": "gitingest"
+})
+```
+**Note**: Using `rlm_load_file` with `filetype='gitingest'` automatically:
+- Parses GitIngest output to extract metadata (file count, tokens, directory tree)
+- Applies smart truncation if content exceeds CHARACTER_LIMIT
+- Auto-decomposes content into searchable chunks using intelligent defaults
+- Stores chunks server-side for later retrieval via `rlm_get_chunks`
+- Returns only chunk metadata (not full chunk content) to prevent context pollution
+- Reads the file directly on the server without requiring the LLM to read it first (prevents context pollution)
+
+**Auto‑decomposition feature**: Content is automatically decomposed into searchable chunks using intelligent defaults (strategy auto-detected based on content type). This reduces LLM cognitive overhead by delivering pre‑processed content ready for `rlm_get_chunks`, `rlm_search_context` and `rlm_read_context` operations.
+
+Use the provided tools to:
+1. **Load context** - Store arbitrarily long text (use `rlm_load_file` for large files to avoid context pollution)
+2. **Analyze** - Understand structure and size of large files
+3. **Decompose** - Split into chunks using various strategies (auto-decomposed for GitIngest files)
+4. **Search** - Find relevant sections with regex
+5. **Execute code** - Manipulate data with JavaScript
+6. **Build answer** - Incrementally construct the response
+
+**Critical: Context Pollution Prevention**
+- Use `rlm_load_file` with `file_path` parameter for large files (> 1000 characters)
+- Use `rlm_load_context` with `context` parameter only for small snippets or already-loaded content
+- The `filetype` parameter in `rlm_load_file` enables specialized processing (e.g., `filetype='gitingest'` for auto-decomposition)
+
+**Security Note**: This tool only accepts GitHub URLs. Local paths are rejected to maintain server‑agent security boundary. For local repository analysis, run `gitingest ./ -o tmp/digest.txt` client‑side and use `rlm_load_file` with `filetype='gitingest'` to load the output with auto-decomposition (server-side file loading prevents context pollution).
 
 ## Example Workflow
 
