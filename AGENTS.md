@@ -210,8 +210,6 @@ rlm_search_context({context_id: "docs", pattern: "Example 5"})
 rlm_get_gitingest({
   url: "https://github.com/owner/repo",
   context_id: "repo-analysis",
-  include_patterns: ["*.py", "*.js", "*.md"],
-  exclude_patterns: ["node_modules/*", "*.log"],
   max_file_size: 51200 // 50KB limit
 })
 ```
@@ -235,9 +233,11 @@ rlm_get_gitingest({
 - `exclude_patterns` (optional): Exclude files matching Unix shell-style wildcards
 - `max_file_size` (optional): Maximum file size in bytes to process
 
+**Security Note**: This tool only accepts GitHub URLs. Local paths are rejected to maintain server‑agent security boundary. For local repository analysis follow the next step.
+
 #### Local GitHub Repository Analysis for RLM MCP Server
 
-**Rationale**: This approach is ideal when you want to analyze a local repository. The tool `rlm_get_gitingest` only accepts GitHub URLs, local paths are rejected to maintain server‑agent security boundary.
+**Rationale**: This approach is ideal when you want to analyze a local repository.
 
 **Step 1: Generate repository digest locally**
 ```bash
@@ -258,6 +258,12 @@ rlm_load_file({
   "filetype": "gitingest"
 })
 ```
+
+**Parameters**:
+- `file_path` (required): Local repository file (e.g. `tmp/digest.txt`).
+- `context_id` (optional, default: "repo-digest"): Context identifier for loaded content
+- `filetype` (optional): Special file type (e.g. `filetype='gitingest`)
+
 **Note**: Using `rlm_load_file` with `filetype='gitingest'` automatically:
 - Parses GitIngest output to extract metadata (file count, tokens, directory tree)
 - Applies smart truncation if content exceeds CHARACTER_LIMIT
@@ -280,5 +286,3 @@ Use the provided tools to:
 - Use `rlm_load_file` with `file_path` parameter for large files (> 1000 characters)
 - Use `rlm_load_context` with `context` parameter only for small snippets or already-loaded content
 - The `filetype` parameter in `rlm_load_file` enables specialized processing (e.g., `filetype='gitingest'` for auto-decomposition)
-
-**Security Note**: This tool only accepts GitHub URLs. Local paths are rejected to maintain server‑agent security boundary. For local repository analysis, run `gitingest ./ -o tmp/digest.txt` client‑side and use `rlm_load_file` with `filetype='gitingest'` to load the output with auto-decomposition (server-side file loading prevents context pollution).
