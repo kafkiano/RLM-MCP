@@ -111,7 +111,7 @@ function buildArgs(
  * GitIngest outputs three sections: summary, directory tree, and file contents.
  * We'll capture the entire output as content and extract metadata where possible.
  */
-function parseOutput(output: string): { fileCount: number; estimatedTokens: number; directoryTree: string } {
+export function parseOutput(output: string): { fileCount: number; estimatedTokens: number; directoryTree: string } {
   // Default values
   let fileCount = 0;
   let estimatedTokens = 0;

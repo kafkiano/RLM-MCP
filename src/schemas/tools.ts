@@ -54,7 +54,11 @@ export const LoadFileInputSchema = z.object({
   
   session_id: z.string()
     .optional()
-    .describe('Session ID. If not provided, uses default session')
+    .describe('Session ID. If not provided, uses default session'),
+  
+  filetype: z.enum(['gitingest'])
+    .optional()
+    .describe('File type for specialized processing (e.g., "gitingest" for GitIngest digest files with auto-decomposition)')
 }).strict();
 
 export type LoadFileInput = z.infer<typeof LoadFileInputSchema>;

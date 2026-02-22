@@ -170,13 +170,14 @@ This prevents context pollution when loading large files.
 The file path is relative to the workspace directory. Only files within the workspace
 can be loaded for security reasons.
 
-Example workflow:
-1. rlm_load_file - Load a large file (e.g., tmp/digest.txt)
-2. rlm_get_context_info - Understand structure and size
-3. rlm_decompose_context - Split into manageable chunks
-4. rlm_search_context - Find relevant sections
-5. rlm_read_context - Read specific portions
-6. rlm_set_answer - Build up your response`,
+Optional filetype parameter enables specialized processing:
+- 'gitingest': Auto-parse GitIngest digest files with metadata extraction and auto-decomposition
+
+Example workflow for GitIngest digest:
+1. Generate digest locally: gitingest ./ -o tmp/digest.txt
+2. Load with auto-decomposition: rlm_load_file { file_path: "tmp/digest.txt", filetype: "gitingest" }
+3. Search: rlm_search_context
+4. Read specific portions: rlm_read_context`,
       inputSchema: LoadFileInputSchema,
       annotations: {
         readOnlyHint: false,
@@ -203,6 +204,108 @@ Example workflow:
           params.file_path
         );
 
+        // Handle GitIngest filetype with auto-decomposition
+        if (params.filetype === 'gitingest') {
+          const content = contextItem.content;
+          
+          // Validate GitIngest output structure
+          const hasDirectoryTree = content.includes('Directory structure:');
+          const hasFileContent = content.includes('FILE:') || content.includes('===') || content.includes('---');
+          
+          if (!hasDirectoryTree || !hasFileContent) {
+            return {
+              content: [{ type: 'text', text: `Error: File "${params.file_path}" does not appear to be a valid GitIngest digest. Expected "Directory structure:" and file delimiters (FILE:, ===, or ---).` }]
+            };
+          }
+
+          // Parse GitIngest output
+          const { parseOutput } = await import('../utils/gitingest-adapter.js');
+          const { decomposeStructured, extractFilePaths } = await import('../utils/structured-decomposer.js');
+          const metadata = parseOutput(content);
+          
+          // Track truncation (already applied by loadContextFromFile)
+          const originalLength = content.length;
+          const truncated = originalLength > CHARACTER_LIMIT;
+          
+          // Auto-decompose with intelligent defaults
+          const filePaths = extractFilePaths(metadata.directoryTree);
+          const chunks = decomposeStructured(
+            content,
+            {
+              directoryTree: metadata.directoryTree,
+              filePaths,
+              sourceType: 'mixed'
+            },
+            {
+              autoDetect: true,
+              maxChunkSize: 10000,
+              overlap: 200
+            }
+          );
+
+          // Store chunks in session variables for later retrieval via rlm_get_chunks
+          sessionManager.setVariable(
+            session.id,
+            `${params.context_id}_chunks`,
+            chunks
+          );
+          console.log(`Stored ${chunks.length} chunks in session variables`);
+
+          // Build chunk metadata (limit to avoid context pollution)
+          const chunkMetadata = chunks.map((c: any) => ({
+            index: c.index,
+            startOffset: c.startOffset,
+            endOffset: c.endOffset,
+            length: c.length || (c.endOffset - c.startOffset),
+            // Include only file metadata, not full chunk content
+            metadata: {
+              files: c.metadata?.files || []
+            }
+          }));
+
+          const output = {
+            success: true,
+            context_id: params.context_id,
+            session_id: session.id,
+            file_path: params.file_path,
+            filetype: params.filetype,
+            metadata: {
+              source: params.file_path,
+              fileCount: metadata.fileCount,
+              estimatedTokens: metadata.estimatedTokens,
+              directoryTree: metadata.directoryTree,
+              originalLength,
+              truncated,
+              contentLength: content.length,
+              chunkCount: chunks.length,
+              strategy: 'auto',
+              stored_chunks_key: `${params.context_id}_chunks`
+            },
+            // Return limited chunk metadata to avoid context pollution
+            // If there are many chunks, return only summary
+            chunk_summary: {
+              total: chunks.length,
+              sample: chunkMetadata.slice(0, 10), // First 10 chunks as sample
+              message: chunks.length > 10 ? `Showing first 10 of ${chunks.length} chunks. Use rlm_get_chunks to retrieve specific chunks.` : 'All chunks metadata shown.'
+            }
+          };
+
+          // Check if output exceeds CHARACTER_LIMIT
+          let text = JSON.stringify(output, null, 2);
+          if (text.length > CHARACTER_LIMIT) {
+            // Remove sample chunks to reduce size
+            output.chunk_summary.sample = [];
+            output.chunk_summary.message = `Chunk metadata omitted to avoid context pollution. Use rlm_get_chunks to retrieve specific chunks.`;
+            text = JSON.stringify(output, null, 2);
+          }
+
+          return {
+            content: [{ type: 'text', text }],
+            structuredContent: output
+          };
+        }
+
+        // Default behavior: return basic metadata
         const output = {
           success: true,
           context_id: params.context_id,
