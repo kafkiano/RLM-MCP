@@ -251,17 +251,14 @@ Example workflow for GitIngest digest:
           );
           console.log(`Stored ${chunks.length} chunks in session variables`);
 
-          // Build chunk metadata (limit to avoid context pollution)
-          const chunkMetadata = chunks.map((c: any) => ({
-            index: c.index,
-            startOffset: c.startOffset,
-            endOffset: c.endOffset,
-            length: c.length || (c.endOffset - c.startOffset),
-            // Include only file metadata, not full chunk content
-            metadata: {
-              files: c.metadata?.files || []
+          // Build file distribution summary (no chunk content to avoid context pollution)
+          const fileDistribution: Record<string, number> = {};
+          for (const chunk of chunks) {
+            const files = (chunk.metadata?.files as string[]) || [];
+            for (const file of files) {
+              fileDistribution[file] = (fileDistribution[file] || 0) + 1;
             }
-          }));
+          }
 
           const output = {
             success: true,
@@ -278,24 +275,22 @@ Example workflow for GitIngest digest:
               truncated,
               contentLength: content.length,
               chunkCount: chunks.length,
-              strategy: 'auto',
-              stored_chunks_key: `${params.context_id}_chunks`
+              strategy: 'auto'
             },
-            // Return limited chunk metadata to avoid context pollution
-            // If there are many chunks, return only summary
+            // Return distribution summary instead of chunk samples
             chunk_summary: {
               total: chunks.length,
-              sample: chunkMetadata.slice(0, 10), // First 10 chunks as sample
-              message: chunks.length > 10 ? `Showing first 10 of ${chunks.length} chunks. Use rlm_get_chunks to retrieve specific chunks.` : 'All chunks metadata shown.'
+              file_distribution: fileDistribution,
+              message: `Chunks distributed across ${Object.keys(fileDistribution).length} files. Use rlm_get_chunks to retrieve specific chunks by index.`
             }
           };
 
           // Check if output exceeds CHARACTER_LIMIT
           let text = JSON.stringify(output, null, 2);
           if (text.length > CHARACTER_LIMIT) {
-            // Remove sample chunks to reduce size
-            output.chunk_summary.sample = [];
-            output.chunk_summary.message = `Chunk metadata omitted to avoid context pollution. Use rlm_get_chunks to retrieve specific chunks.`;
+            // Remove file distribution to reduce size (could be large with many files)
+            output.chunk_summary.file_distribution = {};
+            output.chunk_summary.message = `File distribution omitted to avoid context pollution. Use rlm_get_chunks to retrieve specific chunks.`;
             text = JSON.stringify(output, null, 2);
           }
 
@@ -555,7 +550,35 @@ You can request multiple chunks at once (up to 50).`,
         };
       }
 
-      // Re-decompose to get chunks (could be cached for optimization)
+      // Check for pre-computed chunks from GitIngest
+      const storedChunks = sessionManager.getVariable(session!.id, `${params.context_id}_chunks`) as any[] | undefined;
+
+      if (storedChunks && storedChunks.length > 0) {
+        // Return stored chunks directly (no re-decomposition)
+        const chunks = params.chunk_indices
+          .filter(i => i >= 0 && i < storedChunks.length)
+          .map(i => ({
+            index: i,
+            content: storedChunks[i].content,
+            start_offset: storedChunks[i].startOffset,
+            end_offset: storedChunks[i].endOffset,
+            metadata: storedChunks[i].metadata // Preserve file metadata!
+          }));
+
+        const output = {
+          requested: params.chunk_indices.length,
+          returned: chunks.length,
+          chunks,
+          source: 'stored' // Indicate chunks came from storage
+        };
+
+        return {
+          content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
+          structuredContent: output
+        };
+      }
+
+      // FALLBACK: Re-decompose if no stored chunks exist
       const allChunks = contextProcessor.decompose(context.content, params.strategy, {
         chunkSize: params.chunk_size,
         overlap: params.overlap

@@ -7,7 +7,15 @@
 
 import { DecompositionStrategy, Chunk } from '../types.js';
 import { contextProcessor } from '../services/context-processor.js';
-import { CHARACTER_LIMIT } from '../constants.js';
+import {
+  CHARACTER_LIMIT,
+  DEFAULT_CHUNK_SIZE,
+  DEFAULT_OVERLAP,
+  DEFAULT_LINES_PER_CHUNK,
+  GITINGEST_CHUNK_SIZE,
+  GITINGEST_OVERLAP,
+  GITINGEST_LINES_PER_CHUNK
+} from '../constants.js';
 
 export interface StructuredDecompositionOptions {
   strategy?: DecompositionStrategy;
@@ -171,61 +179,42 @@ export function smartTruncate(
   const preserved: string[] = [];
   const discarded: string[] = [];
   
-  // Always preserve directory tree section if present
+  // Always preserve directory tree section
   let truncated = '';
   if (directoryTree && content.includes(directoryTree)) {
-    const treeStart = content.indexOf(directoryTree);
-    const treeEnd = treeStart + directoryTree.length;
-    truncated += content.substring(treeStart, treeEnd) + '\n\n';
+    const treeEnd = content.indexOf(directoryTree) + directoryTree.length;
+    truncated += content.substring(0, treeEnd);
     preserved.push('directory tree');
   }
   
   // Detect file boundaries
   const boundaries = detectFileBoundaries(content, directoryTree);
   
-  // Sort boundaries by priority (lowest number = highest priority)
-  const sortedBoundaries = [...boundaries].sort((a, b) => a.priority - b.priority);
-  
   // Add files in priority order until we reach maxLength
   let currentLength = truncated.length;
-  
-  for (const boundary of sortedBoundaries) {
+  for (const boundary of boundaries) {
     const fileContent = content.substring(boundary.startOffset, boundary.endOffset);
     
     if (currentLength + fileContent.length <= maxLength) {
-      truncated += fileContent + '\n\n';
-      currentLength += fileContent.length + 2; // +2 for newlines
+      truncated += fileContent;
       preserved.push(boundary.path);
+      currentLength += fileContent.length;
     } else {
-      // Try to add partial content if it's high priority
+      // Try to add partial content for high-priority files
       if (boundary.priority <= 2 && currentLength < maxLength) {
-        const remainingSpace = maxLength - currentLength;
-        const partialContent = fileContent.substring(0, remainingSpace - 100) + 
+        const remainingSpace = maxLength - currentLength - 100; // Reserve space for truncation message
+        const partialContent = fileContent.substring(0, remainingSpace) +
           `\n\n[Content truncated due to size limit. Original file: ${boundary.path}]`;
         truncated += partialContent;
         preserved.push(`${boundary.path} (partial)`);
+        currentLength += partialContent.length;
         break;
       } else {
         discarded.push(boundary.path);
       }
     }
     
-    if (currentLength >= maxLength) {
-      break;
-    }
-  }
-  
-  // If we still have space, add remaining content
-  if (currentLength < maxLength && truncated.length < content.length) {
-    const remainingSpace = maxLength - currentLength;
-    const remainingContent = content.substring(truncated.length, truncated.length + remainingSpace);
-    truncated += remainingContent;
-    preserved.push('remaining content');
-  }
-  
-  // Ensure we don't exceed maxLength
-  if (truncated.length > maxLength) {
-    truncated = truncated.substring(0, maxLength);
+    if (currentLength >= maxLength) break;
   }
   
   return { truncated, preserved, discarded };
@@ -280,9 +269,9 @@ export function decomposeStructured(
     strategy,
     autoDetect = true,
     preserveTree = true,
-    maxChunkSize = 10000,
-    overlap = 200,
-    linesPerChunk = 100,
+    maxChunkSize = DEFAULT_CHUNK_SIZE,
+    overlap = DEFAULT_OVERLAP,
+    linesPerChunk = DEFAULT_LINES_PER_CHUNK,
     pattern
   } = options;
   
@@ -329,6 +318,16 @@ export function decomposeStructured(
     finalStrategy = DecompositionStrategy.FIXED_SIZE;
   }
   
+  // NEW: Use GitIngest-specific chunk sizes for repository content
+  const isGitIngestContent = !!metadata.directoryTree;
+  const adjustedChunkSize = isGitIngestContent
+    ? GITINGEST_CHUNK_SIZE  // 2k chars for GitIngest
+    : maxChunkSize;
+  
+  const adjustedOverlap = isGitIngestContent
+    ? GITINGEST_OVERLAP  // 100 chars for GitIngest
+    : overlap;
+  
   // Get file boundaries for enhanced metadata
   const fileBoundaries = detectFileBoundaries(
     processedContent,
@@ -336,27 +335,33 @@ export function decomposeStructured(
     metadata.filePaths
   );
 
-  // Adjust linesPerChunk for code content
-  let adjustedLinesPerChunk = linesPerChunk;
+  // Adjust linesPerChunk based on content type and GitIngest status
+  let finalAdjustedLinesPerChunk = linesPerChunk;
+  
   if (finalStrategy === DecompositionStrategy.BY_LINES) {
-    // Check if content is mostly code
-    const filePaths = metadata.filePaths || (metadata.directoryTree ? extractFilePaths(metadata.directoryTree) : []);
-    const codeFiles = filePaths.filter(p =>
-      p.endsWith('.ts') || p.endsWith('.js') || p.endsWith('.py') ||
-      p.endsWith('.java') || p.endsWith('.go') || p.endsWith('.rs') ||
-      p.endsWith('.cpp') || p.endsWith('.c') || p.endsWith('.cs')
-    );
-    if (codeFiles.length / Math.max(filePaths.length, 1) > 0.6) {
-      // Use larger chunks for code (250 lines instead of default 100)
-      adjustedLinesPerChunk = 250;
+    if (isGitIngestContent) {
+      // For GitIngest content, use smaller chunks (50 lines)
+      finalAdjustedLinesPerChunk = GITINGEST_LINES_PER_CHUNK;
+    } else {
+      // For non-GitIngest content, check if content is mostly code
+      const filePaths = metadata.filePaths || (metadata.directoryTree ? extractFilePaths(metadata.directoryTree) : []);
+      const codeFiles = filePaths.filter(p =>
+        p.endsWith('.ts') || p.endsWith('.js') || p.endsWith('.py') ||
+        p.endsWith('.java') || p.endsWith('.go') || p.endsWith('.rs') ||
+        p.endsWith('.cpp') || p.endsWith('.c') || p.endsWith('.cs')
+      );
+      if (codeFiles.length / Math.max(filePaths.length, 1) > 0.6) {
+        // Use larger chunks for code (250 lines instead of default 100)
+        finalAdjustedLinesPerChunk = 250;
+      }
     }
   }
 
   // Decompose using ContextProcessor
   const chunks = contextProcessor.decompose(processedContent, finalStrategy, {
-    chunkSize: maxChunkSize,
-    overlap,
-    linesPerChunk: adjustedLinesPerChunk,
+    chunkSize: adjustedChunkSize,
+    overlap: adjustedOverlap,
+    linesPerChunk: finalAdjustedLinesPerChunk,
     pattern
   });
   

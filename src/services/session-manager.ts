@@ -148,9 +148,15 @@ export class SessionManager {
       throw new Error(`Failed to read file "${filePath}"`);
     }
     
+    // Track original length for truncation detection
+    const originalLength = content.length;
+    
     // Enforce character limit
+    let truncated = false;
     if (content.length > CHARACTER_LIMIT) {
+      console.warn(`Warning: File content (${content.length} chars) exceeds CHARACTER_LIMIT (${CHARACTER_LIMIT}). Truncating.`);
       content = content.slice(0, CHARACTER_LIMIT);
+      truncated = true;
     }
     
     const metadata = this.analyzeContent(content);
@@ -158,7 +164,11 @@ export class SessionManager {
     const contextItem: ContextItem = {
       id: contextId,
       content,
-      metadata,
+      metadata: {
+        ...metadata,
+        originalLength,
+        truncated
+      },
       createdAt: new Date()
     };
 

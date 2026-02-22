@@ -26,6 +26,8 @@ export interface ContextMetadata {
   wordCount: number;
   structure: StructureType;
   encoding?: string;
+  originalLength?: number;
+  truncated?: boolean;
 }
 
 /**

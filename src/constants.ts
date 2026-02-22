@@ -19,6 +19,11 @@ export const DEFAULT_CHUNK_SIZE = 10000;    // Characters per chunk
 export const DEFAULT_OVERLAP = 500;         // Overlap between chunks (increased from 200 for better cross-chunk pattern matching)
 export const DEFAULT_LINES_PER_CHUNK = 100; // Lines per chunk
 
+// GitIngest-specific defaults (smaller for selective retrieval)
+export const GITINGEST_CHUNK_SIZE = 2000;     // 2k chars for GitIngest content
+export const GITINGEST_OVERLAP = 100;         // 100 chars overlap for GitIngest
+export const GITINGEST_LINES_PER_CHUNK = 50;  // 50 lines for GitIngest
+
 // Code execution
 export const CODE_EXECUTION_TIMEOUT_MS = 30000;  // 30 seconds
 
