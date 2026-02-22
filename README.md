@@ -8,7 +8,7 @@
 
 The RLM MCP server sits between an LLM's limited context window and external data sources. It is **not** a persistent memory system, nor a database. It is a **processing buffer** that enables strategic information management before data enters the LLM's precious context space.
 
-Read more about reasonable use cases in the [Memory Architecture Reference](docs/memory-architecture.md).
+Read more about reasonable use cases in the [Memory Architecture Reference](.roo/rules/memory-architecture.md).
 
 ## 🎯 Key Design Principle
 
