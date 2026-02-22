@@ -5,10 +5,11 @@
   "main": "dist/index.js",
   "type": "module",
   "scripts": {
-    "build": "tsc",
-    "start": "npx pm2 start prod.config.cjs",
-    "dev": "tsx --inspect-brk src/index.ts",
-    "inspect": "npx @modelcontextprotocol/inspector node dist/index.js"
+    "build": "bun run tsc",
+    "build:bin": "bun build ./src/index.ts --compile --outfile ./bin/rlm-mcp-server",
+    "start": "bunx pm2 start prod.config.json",
+    "dev": "bun --inspect-brk src/index.ts",
+    "inspect": "bunx @modelcontextprotocol/inspector bun run dist/index.js"
   },
   "keywords": [
     "mcp",
@@ -30,10 +31,6 @@
   "devDependencies": {
     "@types/express": "^4.17.21",
     "@types/node": "^22.10.0",
-    "tsx": "^4.19.0",
     "typescript": "^5.7.0"
-  },
-  "engines": {
-    "node": ">=18.0.0"
   }
 }

@@ -1,5 +1,7 @@
 # RLM MCP Server v2.0
 
+[![Built with Bun](https://img.shields.io/badge/Built%20with-Bun-F472B6?style=flat&logo=bun&logoColor=white)](https://bun.sh)
+
 **Recursive Language Model Infrastructure Server** - Enables ANY LLM to process arbitrarily long contexts through recursive decomposition.
 
 ## Architectural Context
@@ -63,22 +65,30 @@ Your client's LLM uses the provided tools to:
 
 ## Installation
 
-LLMs can spawn new node instances by calling the RLM MCP Server via client mcp configuration. So there is no reason to start the server as a background process if you don't want to use shared sessions. 
+This project uses [Bun](https://bun.com/), so make sure you have it installed.
 
-If you want shared sessions for multiple agents run `npm start`.
+```shell
+# Install bun globally
+curl -fsSL https://bun.sh/install | bash
+```
+
+Build the server bin
 
 ```bash
-# Clone or navigate to project
-cd rlm-mcp-server
-
 # Install dependencies
-npm install
+bun install
 
 # Build
-npm run build
+bun run build:bin
+```
 
+LLMs can spawn new node instances by calling the RLM MCP Server via client mcp configuration. So there is no reason to start the server as a background process if you don't want to use shared sessions. 
+
+If you want shared sessions for multiple agents run `bun start`.
+
+```shell
 # Run the server as daemon (If you need sharable multi agent sessions)
-npm start
+bun start
 ```
 
 ⚠️ The GitHub Repository Analysis Tool (`rlm_get_gitingest`) needs the **GitIngest** Python CLI tool installed:
@@ -90,60 +100,40 @@ pipx install gitingest
 
 ## MCP Client Configuration
 
-### Claude Desktop (Windows)
+#### Cline / Roo Code / Claude Desktop 
 
-Edit `%APPDATA%\Claude\claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "rlm": {
-      "command": "node",
-      "args": ["C:\\path\\to\\rlm-mcp-server\\dist\\index.js"]
-    }
-  }
-}
-```
-
-### Claude Desktop (macOS/Linux)
-
-Edit `~/.config/claude/claude_desktop_config.json`:
+Edit `.roo/mcp.json` (or your client specific MCP configuration) and add:
 
 ```json
 {
-  "mcpServers": {
-    "rlm": {
-      "command": "node",
-      "args": ["/path/to/rlm-mcp-server/dist/index.js"]
-    }
-  }
-}
-```
-
-### Alma
-
-Add to your MCP server configuration:
-
-```json
-{
-  "rlm-mcp-server": {
-    "command": "node",
-    "args": ["/path/to/rlm-mcp-server/dist/index.js"]
-  }
-}
-```
-
-#### Roo Code
-
-Edit `.roo/mcp.json` or globally
-
-```json
 	"mcpServers": {
-    "rlm": {
-      "command": "node",
-      "args": ["/path/to/rlm-mcp-server/dist/index.js"]
-    }
+		"rlm": {
+			"command": "bin/rlm-mcp-server",
+			"alwaysAllow": [
+				"rlm_load_context",
+				"rlm_get_context_info",
+				"rlm_read_context",
+				"rlm_decompose_context",
+				"rlm_find_all",
+				"rlm_search_context",
+				"rlm_get_chunks",
+				"rlm_set_variable",
+				"rlm_get_variable",
+				"rlm_set_answer",
+				"rlm_get_answer",
+				"rlm_create_session",
+				"rlm_get_statistics",
+				"rlm_suggest_strategy",
+				"rlm_clear_session",
+				"rlm_get_session_info",
+				"rlm_execute_code",
+				"rlm_get_github_docs",
+				"rlm_get_gitingest",
+				"rlm_load_file"
+			]
+		}
 	}
+}
 ```
 
 ## Available Tools

@@ -7,26 +7,26 @@ This file provides guidance to agents when working with code in this repository.
 **Rationale**: Recursive Language Model (RLM) MCP Server - Infrastructure server to enable any LLM to process arbitrarily long contexts through recursive decomposition. All tools available through Client MCP Settings
 
 - Project Name: RLM MCP Server - Recursive Language Model (RLM) MCP Server
-- Tec Stack: Node v22.21.1 | NPM 10.9.4 | Express v4.21.0 | Typescript ES2022
+- Tec Stack: Bun v1.3.9 | Express v4.21.0 | Typescript ES2022
 
 ## Agent‑Specific Guidelines
 
 **WARNING – Interactive Commands**
-- **DO NOT** run `npm run dev` or `npm run inspect` directly from an agent session.
+- **DO NOT** run `bun run dev` or `bun run inspect` directly from an agent session.
 - These commands start interactive Node.js processes that will **block/stall** your agent session.
 - The server is designed to be run as an MCP background process configured in your client (Claude Desktop, Roo Code, Cline, Opencode, etc.). Follow your client specific instructions for MCP Server tool calling, however the tool names will always be the same as referenced below in this doc.
 
-**Note about `npm start`:**
-- `npm start` runs the HTTP server (`node dist/index.js --http --port=3000`) as background process.
+**Note about `bun start`:**
+- `bun start` runs the HTTP server (`node dist/index.js --http --port=3000`) as background process.
 - For single‑agent usage, configure your MCP client to launch the server via stdio (default).
 
 **Correct Usage**
 1. As an agent, you already have tool access via MCP – no need to start the server manually.
-2. If you need a persistent shared session across multiple agents, run the HTTP server as a background process (`npm start`) and use explicit session IDs.
+2. If you need a persistent shared session across multiple agents, run the HTTP server as a background process (`bun start`) and use explicit session IDs.
 
 **Shared Sessions**
 - By default each agent gets an isolated session (session_id='default').
-- To share contexts between agents, start the HTTP server as a background process (`npm start`) and use explicit session IDs in tool calls.
+- To share contexts between agents, start the HTTP server as a background process (`bun start`) and use explicit session IDs in tool calls.
 - The singleton `SessionManager` automatically shares contexts, variables, and execution state across all agents using the same `session_id` parameter.
 - HTTP mode supports concurrent access; stdio mode is limited to single‑agent usage.
 
@@ -45,7 +45,7 @@ This file provides guidance to agents when working with code in this repository.
 **Rationale**: Ship working code not theoretical concepts.
 
 ### Compilation Testing
-- Use `npm run build` to test if Typescript build passes without errors.
+- Use `bun run build:bin` to test if Typescript build passes without errors.
 
 ### Integration Testing via RLM MCP Tools
 **CRITICAL**: As an agent working in Claude Desktop, Roo Code, Cline, Opencode, etc. you have direct access to the RLM MCP server tools. Test your changes by calling the relevant tools to verify they work correctly in the live system.
@@ -73,8 +73,8 @@ rlm_get_gitingest({
 ```
 
 ### Manual Testing Commands
-- **DO NOT** run `npm run dev` or `npm run inspect` (these block the agent session)
-- **Optional**: Run `npm start` for HTTP mode testing if you need shared sessions
+- **DO NOT** run `bun run dev` or `bun run inspect` (these block the agent session)
+- **Optional**: Run `bun start` for HTTP mode testing if you need shared sessions
 - **Prefer**: Direct MCP tool calls through the client interface
 
 ## Available Tools

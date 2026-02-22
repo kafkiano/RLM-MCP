@@ -1,10 +1,7 @@
 {
 	"mcpServers": {
 		"rlm": {
-			"command": "node",
-			"args": [
-				"dist/index.js"
-			],
+			"command": "bin/rlm-mcp-server",
 			"alwaysAllow": [
 				"rlm_load_context",
 				"rlm_get_context_info",
