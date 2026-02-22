@@ -11,16 +11,15 @@ import { ResponseFormat, DecompositionStrategy } from '../types.js';
 // ============================================
 
 /**
- * Load context into session (supports both direct content and file path)
+ * Load context already present in LLM context into ephemeral storage.
+ * Use this tool to move content already in your LLM context into ephemeral storage for later processing.
+ *
+ * For loading files from disk without reading them into LLM context first, use `rlm_load_file`.
  */
 export const LoadContextInputSchema = z.object({
   context: z.string()
-    .optional()
-    .describe('The text content to load (optional if file_path provided)'),
-  
-  file_path: z.string()
-    .optional()
-    .describe('Path to file relative to workspace directory (optional if context provided)'),
+    .min(1, 'Context content is required')
+    .describe('The text content already in LLM context to load into ephemeral storage'),
   
   context_id: z.string()
     .min(1)
@@ -31,10 +30,7 @@ export const LoadContextInputSchema = z.object({
   session_id: z.string()
     .optional()
     .describe('Session ID. If not provided, uses default session')
-}).strict().refine(
-  data => !!(data.context || data.file_path),
-  { message: 'Either context or file_path must be provided' }
-);
+}).strict();
 
 export type LoadContextInput = z.infer<typeof LoadContextInputSchema>;
 

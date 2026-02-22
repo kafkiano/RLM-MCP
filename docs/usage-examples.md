@@ -227,7 +227,7 @@ Response:
 
 **Approach B: GitIngest + RLM workflow (for local repositories)**
 
-This approach is ideal when you want to analyze a local repository because the `rlm_get_gitingest` tool only accepts GitHub URLs. Local paths are rejected to maintain server‑agent security boundary.
+This approach is ideal when you want to analyze a local repository. The tool `rlm_get_gitingest` only accepts GitHub URLs. Local paths are rejected to maintain server‑agent security boundary.
 
 **Step 1: Generate repository digest locally**
 ```bash

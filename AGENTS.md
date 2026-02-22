@@ -85,10 +85,12 @@ Context Management
 
 | Tool | Description | When to Use |
 |------|-------------|--------------|
-| `rlm_load_context` | Load text content into session (supports both direct content string and file path) | Small snippets (< 1000 chars), already-loaded content, temporary working data |
-| `rlm_load_file` | Load file content into session (server-side file reading) | Large files (> 1000 chars), files on disk, GitIngest digest files |
+| `rlm_load_context` | Load content already in LLM context into ephemeral storage (any size). | Use when you need to preserve content already in your LLM context for later processing. |
+| `rlm_load_file` | Load files from disk (any size). Prevents context pollution by reading files server-side. | Use for loading files from disk without reading them into LLM context first. Always prefer this tool over `rlm_load_context` for file loading. |
 | `rlm_get_context_info` | Get metadata and preview | Understand structure and size before processing |
 | `rlm_read_context` | Read portion by chars or lines | Examine specific sections without loading entire context |
+
+**Note**: Choose `rlm_load_file` when possible to keep large data out of LLM context.
 
 #### Decomposition
 
@@ -188,7 +190,16 @@ JSON.parse(str)                   // Parse
 JSON.stringify(obj, indent)       // Stringify
 ```
 
-#### GitHub Repository Analysis for RLM MCP Server
+#### Check detailed Usage Examples for RLM MCP Server
+
+```javascript
+rlm_load_file({file_path: "docs/usage-examples.md"})
+rlm_suggest_strategy({context_id: "docs"}) // → Returns "by_sections"
+rlm_decompose_context({context_id: "docs", strategy: "by_sections"})
+rlm_search_context({context_id: "docs", pattern: "Example 5"})
+```
+
+#### Remote GitHub Repository Analysis for RLM MCP Server
 
 **Rationale**: Analyze any GitHub repository (including `/docs` directories) using the GitIngest Python CLI. The `rlm_get_gitingest` tool provides flexible repository analysis with file filtering, structured output, and automatic decomposition with intelligent defaults.
 

@@ -109,33 +109,7 @@ Example workflow:
         };
       }
 
-      let content: string;
-      
-      // Load from file if file_path provided
-      if (params.file_path) {
-        const fullPath = path.resolve(process.cwd(), params.file_path);
-        
-        // Security: Ensure path is within workspace directory
-        const workspaceDir = process.cwd();
-        if (!fullPath.startsWith(workspaceDir)) {
-          return {
-            content: [{ type: 'text', text: `Error: Access denied: Path "${params.file_path}" is outside workspace directory` }]
-          };
-        }
-        
-        // Read file content
-        try {
-          content = await fs.readFile(fullPath, 'utf-8');
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          return {
-            content: [{ type: 'text', text: `Error: Failed to read file "${params.file_path}": ${errorMessage}` }]
-          };
-        }
-      } else {
-        // Use provided context string
-        content = params.context!;
-      }
+      const content = params.context;
 
       const contextItem = sessionManager.loadContext(
         session.id,
@@ -147,7 +121,6 @@ Example workflow:
         success: true,
         context_id: params.context_id,
         session_id: session.id,
-        ...(params.file_path && { file_path: params.file_path }),
         metadata: contextItem.metadata
       };
 
