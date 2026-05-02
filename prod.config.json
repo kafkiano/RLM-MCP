@@ -1,0 +1,19 @@
+{
+  "apps": [
+    {
+      "name": "rlm-mcp-server",
+      "script": "/bin/sh",
+      "args": "-c './bin/rlm-mcp-server'",
+      "interpreter": "none",
+      "exec_mode": "fork",
+      "instances": 1,
+      "autorestart": true,
+      "watch": false,
+      "merge_logs": true,
+      "max_memory_restart": "2G",
+      "min_uptime": "10s",
+      "max_restarts": 10,
+      "log_file": "tmp/server.log"
+    }
+  ]
+}
