@@ -52,7 +52,11 @@ export class ContextProcessor {
         return this.decomposeByParagraphs(content);
       
       case DecompositionStrategy.BY_SECTIONS:
+<<<<<<< HEAD
         return this.decomposeBySections(content);
+=======
+        return this.decomposeBySections(content, options.pattern);
+>>>>>>> fix/decomposition-bugs
       
       case DecompositionStrategy.BY_REGEX:
         return this.decomposeByRegex(content, options.pattern || '\n\n+');
@@ -159,8 +163,15 @@ export class ContextProcessor {
   /**
    * Chunk by sections (markdown headers)
    */
+<<<<<<< HEAD
   private decomposeBySections(content: string): Chunk[] {
     const sectionPattern = /^(#{1,6})\s+(.+)$/gm;
+=======
+  private decomposeBySections(content: string, pattern?: string): Chunk[] {
+    const sectionPattern = pattern
+      ? new RegExp(pattern, 'gm')
+      : /^(#{1,6})\s+(.+)$/gm;
+>>>>>>> fix/decomposition-bugs
     const sections: Chunk[] = [];
     let lastIndex = 0;
     let index = 0;
@@ -171,8 +182,13 @@ export class ContextProcessor {
     while ((match = sectionPattern.exec(content)) !== null) {
       matches.push({
         start: match.index,
+<<<<<<< HEAD
         level: match[1].length,
         title: match[2]
+=======
+        level: match[1] ? match[1].length : 0,
+        title: match[2] || match[0]
+>>>>>>> fix/decomposition-bugs
       });
     }
 
@@ -226,6 +242,7 @@ export class ContextProcessor {
    * Chunk by custom regex pattern
    */
   private decomposeByRegex(content: string, pattern: string): Chunk[] {
+<<<<<<< HEAD
     const regex = new RegExp(pattern, 'g');
     const parts = content.split(regex);
     const chunks: Chunk[] = [];
@@ -243,6 +260,53 @@ export class ContextProcessor {
         offset = startOffset + part.length;
       }
     });
+=======
+    // Use multiline flag so ^ matches line starts, not just string start
+    const regex = new RegExp(pattern, 'gm');
+    const matches = [...content.matchAll(regex)];
+
+    // No matches: return entire content as single chunk
+    if (matches.length === 0) {
+      return [{
+        index: 0,
+        content: content,
+        startOffset: 0,
+        endOffset: content.length
+      }];
+    }
+
+    const chunks: Chunk[] = [];
+    let index = 0;
+    let lastEnd = 0;
+
+    for (const match of matches) {
+      // Chunk = content from last delimiter to this delimiter (inclusive)
+      // Each chunk includes its delimiter as a header
+      const chunkContent = content.slice(lastEnd, match.index);
+      if (chunkContent.trim()) {
+        chunks.push({
+          index: index++,
+          content: chunkContent.trim(),
+          startOffset: lastEnd,
+          endOffset: match.index!
+        });
+      }
+      lastEnd = match.index! + match[0].length;
+    }
+
+    // Add remaining content after last delimiter
+    if (lastEnd < content.length) {
+      const remaining = content.slice(lastEnd);
+      if (remaining.trim()) {
+        chunks.push({
+          index: index++,
+          content: remaining.trim(),
+          startOffset: lastEnd,
+          endOffset: content.length
+        });
+      }
+    }
+>>>>>>> fix/decomposition-bugs
 
     return chunks;
   }
