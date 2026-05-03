@@ -458,6 +458,10 @@ Returns chunk metadata (indices, offsets). Use rlm_get_chunks to retrieve conten
         pattern: params.pattern
       });
 
+      // Store chunks in session for later retrieval via rlm_get_chunks
+      sessionManager.setVariable(session!.id, `${params.context_id}_chunks`, chunks);
+      sessionManager.setVariable(session!.id, `${params.context_id}_strategy`, params.strategy);
+
       // Build output
       const output: Record<string, unknown> = {
         total_chunks: chunks.length,
@@ -552,7 +556,8 @@ You can request multiple chunks at once (up to 50).`,
       }
 
       // FALLBACK: Re-decompose if no stored chunks exist
-      const allChunks = contextProcessor.decompose(context.content, params.strategy, {
+      const storedStrategy = sessionManager.getVariable(session!.id, `${params.context_id}_strategy`) as string | undefined;
+      const allChunks = contextProcessor.decompose(context.content, (storedStrategy || params.strategy) as any, {
         chunkSize: params.chunk_size,
         overlap: params.overlap
       });
